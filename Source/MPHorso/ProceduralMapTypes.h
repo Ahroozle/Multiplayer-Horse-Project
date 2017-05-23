@@ -5,27 +5,9 @@
 #include "GameFramework/Actor.h"
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
+#include "Components/ChildActorComponent.h"
 #include "ProceduralMapTypes.generated.h"
 
-
-/*
-	TODO :
-
-		Maybe implement "decor connectors"?
-
-		i.e. a decor connector would be a special
-		connector which isn't meant for linking to
-		corridors. Instead, it spawns a certain
-		prebuilt set of decorations fit for the room
-		(or maybe even procedurally decorates the room
-		based on an implemented function?).
-		
-		tl;dr it's a way to make the same exact room
-		look different so the world doesn't look
-		like it's made out of thousands of copy/paste
-		operations like it actually is.
-	
-*/
 
 //	Overview
 /*
@@ -359,6 +341,100 @@ public:
 
 
 /*
+	The ProceduralRoomDecor class is used to
+	represent objects within a room that range
+	in significance from decorational to actually
+	mechanically usable within the space of play.
+*/
+UCLASS()
+class MPHORSO_API AProceduralRoomDecor : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	// Sets default values for this actor's properties
+	AProceduralRoomDecor(const FObjectInitializer& _init);
+
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+
+public:
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
+
+	/*
+	This is imitated from the random stream reference we're given at the start of
+	the build.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralArea")
+		FRandomStream RandStream;
+
+
+	/*
+		This function is called by the spawning
+		ProceduralRoomDecorComponent after being
+		spawned, to set up the decor to allow
+		whatever actions it allows.
+
+		This can be overridden on a per-subclass
+		basis.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural Layout Generation|ProceduralRoomDecorComponent")
+		void Initialize(UPARAM(Ref) FRandomStream& RandomStream);
+	void Initialize_Implementation(UPARAM(Ref) FRandomStream& RandomStream) { RandStream = RandomStream; }
+
+private:
+
+};
+
+/*
+	The ProceduralRoomDecorComponent allows you
+	to spawn random decor into rooms from a list
+	of possible decor it could be.
+*/
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+class MPHORSO_API UProceduralRoomDecorComponent : public UChildActorComponent
+{
+	GENERATED_BODY()
+
+public:
+
+	/*
+		The possible types of decor that suit this room,
+		used whenever the owning room's RequiredDecor array
+		is empty.
+	*/
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoomDecorComponent")
+		TArray<TSubclassOf<AProceduralRoomDecor>> DecorTypes;
+
+	/*
+		Sets the child actor to the specified class.
+
+		Called by the owning ProceduralRoom actor
+		whenever its RequiredDecor array isn't
+		empty.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Procedural Layout Generation|ProceduralRoomDecorComponent")
+		void SpawnDecor(TSubclassOf<AProceduralRoomDecor> DecorType);
+
+	/*
+		The regular function that gets used.
+
+		Called by the owning ProceduralRoom
+		actor whenever its RequiredDecor array
+		is empty.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Procedural Layout Generation|ProceduralRoomDecorComponent")
+		void SpawnRandomDecor();
+
+private:
+	
+};
+
+
+/*
 	This class contains the base functionality for
 	procedural rooms.
 */
@@ -401,6 +477,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoom")
 		TArray<FName> Attributes;
 
+	/*
+		Decor which this room *requires* the existence
+		of.
+
+		If this array contains anything, the room goes
+		through every piece of decor and picks a random,
+		unoccupied UProceduralRoomDecorComponent on itself
+		to spawn it at, stopping if there are no unoccupied
+		components left.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoom")
+		TArray<TSubclassOf<AProceduralRoomDecor>> RequiredDecor;
+
 	// The room's geometry, visible or otherwise.
 	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoom")
 		TArray<USceneComponent*> Geometry;
@@ -408,6 +497,10 @@ public:
 	// The room's connectors.
 	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoom")
 		TArray<UProceduralConnector*> Connectors;
+
+	// The room's decor components.
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoom")
+		TArray<UProceduralRoomDecorComponent*> DecorComponents;
 
 	// The childactorcomponents that create the camera guides, in case they're needed.
 	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoom")
@@ -439,6 +532,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralRoom")
 		TArray<USceneComponent*> OtherObjects;
 
+	/*
+		This is imitated from the random stream reference we're given at the start of
+		the build.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralArea")
+		FRandomStream RandStream;
+
 	
 	// Gets all connectors in this room whose paired LZs' ToZone variable is null.
 	UFUNCTION(BlueprintCallable, Category = "Procedural Layout Generation|ProceduralRoom")
@@ -462,7 +562,7 @@ public:
 			  the CDO. Doing either of these things will cause glitches and/or crashes.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Procedural Layout Generation|ProceduralRoom")
-		void Initialize();
+		void Initialize(UPARAM(Ref) FRandomStream& RandomStream);
 
 	/*
 		This is called at the beginning of Initialize() as a way
@@ -472,6 +572,17 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural Layout Generation|ProceduralRoom")
 		void PrepopulateInternalArrays();
 	void PrepopulateInternalArrays_Implementation() {}
+
+private:
+
+	/*
+		This function sets up all of the required
+		and random decor for this room.
+
+		Called from within Initialize().
+	*/
+	UFUNCTION()
+		void PrepareDecor();
 
 };
 

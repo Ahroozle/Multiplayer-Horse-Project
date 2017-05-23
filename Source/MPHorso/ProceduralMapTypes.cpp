@@ -3,8 +3,6 @@
 #include "MPHorso.h"
 #include "ProceduralMapTypes.h"
 
-#include "Components/ChildActorComponent.h"
-
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -84,6 +82,63 @@ void AProceduralSplineConnector::OnConstruction(const FTransform& Transform)
 }
 
 
+AProceduralRoomDecor::AProceduralRoomDecor(const FObjectInitializer& _init) : Super(_init)
+{
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	//PrimaryActorTick.bCanEverTick = true;
+
+	bReplicates = true;
+	bReplicateMovement = true;
+
+	RootComponent = _init.CreateDefaultSubobject<USceneComponent>(this, TEXT("RootComponent"));
+
+}
+
+void AProceduralRoomDecor::BeginPlay()
+{
+	Super::BeginPlay();
+
+}
+
+void AProceduralRoomDecor::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+}
+
+
+void UProceduralRoomDecorComponent::SpawnDecor(TSubclassOf<AProceduralRoomDecor> DecorType)
+{
+	SetChildActorClass(DecorType);
+
+	AProceduralRoom* OwnerAsRoom = Cast<AProceduralRoom>(GetOwner());
+	if (nullptr != OwnerAsRoom)
+	{
+		AProceduralRoomDecor* ChildAsDecor = Cast<AProceduralRoomDecor>(GetChildActor());
+		if (nullptr != ChildAsDecor)
+			ChildAsDecor->Initialize(OwnerAsRoom->RandStream);
+	}
+}
+
+void UProceduralRoomDecorComponent::SpawnRandomDecor()
+{
+	AProceduralRoom* OwnerAsRoom = Cast<AProceduralRoom>(GetOwner());
+
+	int RandInd;
+
+	if(nullptr != OwnerAsRoom)
+		RandInd = OwnerAsRoom->RandStream.RandRange(0, DecorTypes.Num() - 1);
+	else
+		RandInd = FMath::RandRange(0, DecorTypes.Num() - 1);
+
+	SpawnDecor(DecorTypes[RandInd]);
+
+	AProceduralRoomDecor* ChildAsDecor = Cast<AProceduralRoomDecor>(GetChildActor());
+	if (nullptr != ChildAsDecor)
+		ChildAsDecor->Initialize(OwnerAsRoom->RandStream);
+}
+
+
 AProceduralRoom::AProceduralRoom(const FObjectInitializer& _init) : Super(_init)
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -120,8 +175,10 @@ void AProceduralRoom::GetUnboundConnectors(TArray<UProceduralConnector*>& OutUnb
 	}
 }
 
-void AProceduralRoom::Initialize()
+void AProceduralRoom::Initialize(UPARAM(Ref) FRandomStream& RandomStream)
 {
+	RandStream = RandomStream;
+
 	PrepopulateInternalArrays();
 
 	TArray<USceneComponent*> RetrievedChildren;
@@ -135,6 +192,7 @@ void AProceduralRoom::Initialize()
 
 	PredefinedComponents.Append(Geometry);						// TArray<USceneComponent*> Geometry;
 	PredefinedComponents.Append(Connectors);					// TArray<UProceduralConnector*> Connectors;
+	PredefinedComponents.Append(DecorComponents);				// TArray<UProceduralRoomDecorComponent*> DecorComponents;
 	PredefinedComponents.Append(CameraGuideComponents);			// TArray<UChildActorComponent*> CameraGuideComponents;
 	PredefinedComponents.Append(MobSpawnerComponents);			// TArray<UChildActorComponent*> MobSpawnerComponents;
 	PredefinedComponents.Append(OtherObjects);					// TArray<USceneComponent*> OtherObjects;
@@ -152,6 +210,7 @@ void AProceduralRoom::Initialize()
 	// Search through the remaining pieces for things that fit the bills.
 
 	UProceduralConnector* CurrAsConnector;
+	UProceduralRoomDecorComponent* CurrAsDecor;
 	UChildActorComponent* CurrAsCAC;
 	UPrimitiveComponent* CurrAsPrimComp;
 	AActor* CACChild;
@@ -164,6 +223,10 @@ void AProceduralRoom::Initialize()
 			if (nullptr != (CurrAsConnector = Cast<UProceduralConnector>(curr)))
 			{
 				Connectors.Add(CurrAsConnector);
+			}
+			else if (nullptr != (CurrAsDecor = Cast<UProceduralRoomDecorComponent>(curr)))
+			{
+				DecorComponents.Add(CurrAsDecor);
 			}
 			else if (nullptr != (CurrAsCAC = Cast<UChildActorComponent>(curr)))
 			{
@@ -202,6 +265,27 @@ void AProceduralRoom::Initialize()
 			}
 		}
 	}
+
+	PrepareDecor();
+}
+
+void AProceduralRoom::PrepareDecor()
+{
+	TArray<UProceduralRoomDecorComponent*> UnoccupiedDecorComps = DecorComponents;
+	UnoccupiedDecorComps.RemoveAll([](const UProceduralRoomDecorComponent* a) {return nullptr != a->GetChildActor(); });
+
+	int RandInd;
+	while (RequiredDecor.Num() > 0 && UnoccupiedDecorComps.Num() > 0)
+	{
+		RandInd = RandStream.RandRange(0, UnoccupiedDecorComps.Num() - 1);
+		UnoccupiedDecorComps[RandInd]->SpawnDecor(RequiredDecor[0]);
+
+		RequiredDecor.RemoveAt(0);
+		UnoccupiedDecorComps.RemoveAt(RandInd);
+	}
+
+	for (auto *currDComp : UnoccupiedDecorComps)
+		currDComp->SpawnRandomDecor();
 }
 
 
@@ -254,6 +338,7 @@ void AProceduralArea::SpawnSpecialRooms()
 		else
 			UStaticFuncLib::Print(GetClass()->GetName() + "::SpawnSpecialRooms: Successfully placed room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!");
 
+		NewestSpawned->Initialize(RandStream);
 		SpawnedRooms.Add(NewestSpawned);
 
 		--CurrArchetype.NumInstances;
@@ -274,6 +359,7 @@ void AProceduralArea::Iterate()
 	else
 		UStaticFuncLib::Print(GetClass()->GetName() + "::Iterate: Successfully placed room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!");
 
+	NewestSpawned->Initialize(RandStream);
 	SpawnedRooms.Add(NewestSpawned);
 
 	--CurrArchetype.NumInstances;
