@@ -335,8 +335,8 @@ void AProceduralArea::SpawnSpecialRooms()
 
 		if (!SpawnRoom(CurrArchetype, NewestSpawned))
 			UStaticFuncLib::Print(GetClass()->GetName() + "::SpawnSpecialRooms: Error! Couldn't create room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!", true);
-		else
-			UStaticFuncLib::Print(GetClass()->GetName() + "::SpawnSpecialRooms: Successfully placed room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!");
+		//else
+		//	UStaticFuncLib::Print(GetClass()->GetName() + "::SpawnSpecialRooms: Successfully placed room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!");
 
 		NewestSpawned->Initialize(RandStream);
 		SpawnedRooms.Add(NewestSpawned);
@@ -357,10 +357,12 @@ void AProceduralArea::Iterate()
 	if (!SpawnRoom(CurrArchetype, NewestSpawned))
 		UStaticFuncLib::Print(GetClass()->GetName() + "::Iterate: Error! Couldn't create room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!", true);
 	else
-		UStaticFuncLib::Print(GetClass()->GetName() + "::Iterate: Successfully placed room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!");
+	{
+		NewestSpawned->Initialize(RandStream);
+		SpawnedRooms.Add(NewestSpawned);
 
-	NewestSpawned->Initialize(RandStream);
-	SpawnedRooms.Add(NewestSpawned);
+		//UStaticFuncLib::Print(GetClass()->GetName() + "::Iterate: Successfully placed room \'" + CurrArchetype.RoomType.GetDefaultObject()->GetName() + "\'!");
+	}
 
 	--CurrArchetype.NumInstances;
 
@@ -377,24 +379,8 @@ void AProceduralArea::Iterate()
 
 bool AProceduralArea::SpawnRoom(FProceduralAreaRoomTypeData ArchetypeToSpawn, AProceduralRoom*& OutSpawned)
 {
-	/*
-		TODO : Switch method over to one that doesn't take a
-			   billion failed placement attempts to finish the map
-
-			   might switch it over to always spawn and then just
-			   move the room around until it doesn't collide
-			   anymore (should work with GetOverlappingActors())
-			   just keep the fail state after N iterations and
-			   if it's reached just delete the room to get
-			   basically the same effect.
-
-			   at the very least this should stop flooding the
-			   output with failed spawn attempts and make it other
-			   debug easier to find.
-	*/
-
 	FActorSpawnParameters params;
-	params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+	params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;// DontSpawnIfColliding;
 
 	FVector RandLoc;
 	FRotator RandRot;
@@ -403,12 +389,19 @@ bool AProceduralArea::SpawnRoom(FProceduralAreaRoomTypeData ArchetypeToSpawn, AP
 
 	OutSpawned = GetWorld()->SpawnActor<AProceduralRoom>(ArchetypeToSpawn.RoomType, RandLoc, RandRot, params);
 	int iterationcap = 0;
-	while (nullptr == OutSpawned && iterationcap < MaxRoomPlacementAttempts)
+	while (GetWorld()->EncroachingBlockingGeometry(OutSpawned, RandLoc, RandRot) && iterationcap < MaxRoomPlacementAttempts)
 	{
 		GetAreaRandomPoint(ArchetypeToSpawn.RoomType, RandLoc, RandRot);
-		OutSpawned = GetWorld()->SpawnActor<AProceduralRoom>(ArchetypeToSpawn.RoomType, RandLoc, RandRot, params);
 		++iterationcap;
 	}
+
+	if (iterationcap >= MaxRoomPlacementAttempts)
+	{
+		OutSpawned->Destroy();
+		OutSpawned = nullptr;
+	}
+	else
+		OutSpawned->SetActorLocationAndRotation(RandLoc, RandRot);
 
 	return nullptr != OutSpawned || iterationcap < MaxRoomPlacementAttempts;
 }
