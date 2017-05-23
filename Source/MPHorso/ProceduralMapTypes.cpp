@@ -72,11 +72,12 @@ AProceduralSplineConnector::AProceduralSplineConnector(const FObjectInitializer&
 
 void AProceduralSplineConnector::OnConstruction(const FTransform& Transform)
 {
-	// TODO : IMPL
-	//		  along the lines of https://www.youtube.com/watch?v=7YUxM0NDWRY
-	//		  but of course in C++
+	ConstructMeshes();
+	//// TODO : IMPL
+	////		  along the lines of https://www.youtube.com/watch?v=7YUxM0NDWRY
+	////		  but of course in C++
 
-	MeshData.Sort([](const FSplineConnectorMeshData& a, const FSplineConnectorMeshData& b) { return a.Time < b.Time; });
+	//MeshData.Sort([](const FSplineConnectorMeshData& a, const FSplineConnectorMeshData& b) { return a.Time < b.Time; });
 
 
 }

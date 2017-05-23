@@ -337,6 +337,10 @@ public:
 		TArray<FName> EndAttributes;
 
 
+	UFUNCTION(BLueprintNativeEvent, BlueprintCallable, Category = "Procedural Layout Generation|ProceduralSplineConnector")
+		void ConstructMeshes();
+	void ConstructMeshes_Implementation() {}
+
 };
 
 
