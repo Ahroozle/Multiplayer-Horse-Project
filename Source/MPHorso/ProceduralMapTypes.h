@@ -278,12 +278,16 @@ struct FSplineConnectorMeshData
 		TArray<UStaticMesh*> SegmentMeshes;
 
 	/*
-		the value of T at and after
-		which these meshes start to
-		get used.
+		This contains all of the indices
+		that this meshdata was used to
+		create within the containing
+		splineconnector's SpawnedMeshComponents
+		array, and is used to keep track of
+		operations like removes and additions
+		while maintaining order.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Layout Generation|SplineConnectorMeshData")
-		float Time;
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|SplineConnectorMeshData")
+		TArray<int> Indices;
 };
 
 /*
@@ -300,12 +304,11 @@ public:
 
 	AProceduralSplineConnector(const FObjectInitializer& _init);
 
-	void OnConstruction(const FTransform& Transform) override;
 
 	/*
 		The rootcomponent spline.
 	*/
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralSplineConnector")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralSplineConnector")
 		USplineComponent* RootSpline;
 
 	/*
@@ -316,11 +319,19 @@ public:
 		TArray<USplineMeshComponent*> SpawnedMeshComponents;
 
 	/*
-		The mesh data for the spline, intended
-		to be in chronological order.
+		The mesh data for the spline, in
+		order from start of spline to end
+		of spline, distributed evenly.
 	*/
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralSplineConnector")
 		TArray<FSplineConnectorMeshData> MeshData;
+
+	/*
+		The array of mesh components that
+		were instantiated in ConstructMeshes().
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralSplineConnector")
+		TArray<class USplineMeshComponent*> CreatedMeshComponents;
 	
 	/*
 		The attributes that are supported for connection
@@ -336,10 +347,56 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural Layout Generation|ProceduralSplineConnector")
 		TArray<FName> EndAttributes;
 
+	/*
+		Constructs the initial SplineMeshComponents
+		which make up the SplineConnector's visible
+		and blocking geometry.
 
-	UFUNCTION(BLueprintNativeEvent, BlueprintCallable, Category = "Procedural Layout Generation|ProceduralSplineConnector")
-		void ConstructMeshes();
-	void ConstructMeshes_Implementation() {}
+		The return is only there so that it registers as
+		a function and not an event. It will always
+		return true.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural Layout Generation|ProceduralSplineConnector")
+		bool ConstructMeshes(UPARAM(Ref) FRandomStream& RandStream);
+	bool ConstructMeshes_Implementation(UPARAM(Ref) FRandomStream& RandStream) { return true; }
+
+	/*
+		Updates the positions of all of the
+		pre-created meshes, for use in the
+		event that the spline's points change.
+
+		The return is only there so that it registers as
+		a function and not an event. It will always
+		return true.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural Layout Generation|ProceduralSplineConnector")
+		bool UpdateMeshes(UPARAM(Ref) FRandomStream& RandStream);
+	bool UpdateMeshes_Implementation(UPARAM(Ref) FRandomStream& RandStream) { return true; }
+
+	/*
+		Used inside UpdateMeshes() during
+		adding operations to distribute newly
+		created splinemeshcomponents as evenly
+		as possible.
+
+		Gets all mesh type section indices within
+		MeshData which are tied for the lowest number
+		of indices.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Procedural Layout Generation|ProceduralSplineConnector")
+		void GetSmallestMeshTypeSectionIndices(TArray<int>& OutSmallest);
+
+	/*
+		Used inside UpdateMeshes() during
+		removal operations to cull meshes
+		as evenly as possible.
+
+		Gets all mesh type section indices within
+		MeshData which are tied for the highest number
+		of indices.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Procedural Layout Generation|ProceduralSplineConnector")
+		void GetLargestMeshTypeSectionIndices(TArray<int>& OutLargest);
 
 };
 

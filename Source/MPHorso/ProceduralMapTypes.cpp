@@ -70,16 +70,47 @@ AProceduralSplineConnector::AProceduralSplineConnector(const FObjectInitializer&
 	RootComponent = RootSpline = _init.CreateDefaultSubobject<USplineComponent>(this, TEXT("RootSpline"));
 }
 
-void AProceduralSplineConnector::OnConstruction(const FTransform& Transform)
+void AProceduralSplineConnector::GetSmallestMeshTypeSectionIndices(TArray<int>& OutSmallest)
 {
-	ConstructMeshes();
-	//// TODO : IMPL
-	////		  along the lines of https://www.youtube.com/watch?v=7YUxM0NDWRY
-	////		  but of course in C++
+	struct DataWithInd
+	{
+		FSplineConnectorMeshData Data;
+		int Ind;
+	};
 
-	//MeshData.Sort([](const FSplineConnectorMeshData& a, const FSplineConnectorMeshData& b) { return a.Time < b.Time; });
+	TArray<DataWithInd> DataInds;
 
+	for (int currInd = 0; currInd < MeshData.Num(); ++currInd)
+		DataInds.Add({ MeshData[currInd], currInd });
 
+	DataInds.Sort([](const DataWithInd& a, const DataWithInd& b) { return a.Data.Indices.Num() < b.Data.Indices.Num(); });
+	int LowestIndices = DataInds[0].Data.Indices.Num();
+	DataInds.RemoveAll([&LowestIndices](const DataWithInd& a) { return a.Data.Indices.Num() > LowestIndices; });
+
+	for (auto &currDWI : DataInds)
+		OutSmallest.Add(currDWI.Ind);
+
+}
+
+void AProceduralSplineConnector::GetLargestMeshTypeSectionIndices(TArray<int>& OutLargest)
+{
+	struct DataWithInd
+	{
+		FSplineConnectorMeshData Data;
+		int Ind;
+	};
+
+	TArray<DataWithInd> DataInds;
+
+	for (int currInd = 0; currInd < MeshData.Num(); ++currInd)
+		DataInds.Add({ MeshData[currInd], currInd });
+
+	DataInds.Sort([](const DataWithInd& a, const DataWithInd& b) { return a.Data.Indices.Num() > b.Data.Indices.Num(); });
+	int HighestIndices = DataInds[0].Data.Indices.Num();
+	DataInds.RemoveAll([&HighestIndices](const DataWithInd& a) { return a.Data.Indices.Num() , HighestIndices; });
+
+	for (auto &currDWI : DataInds)
+		OutLargest.Add(currDWI.Ind);
 }
 
 
