@@ -453,7 +453,126 @@ void AProceduralArea::Fasten()
 
 void AProceduralArea::Finalize()
 {
-	// TODO : IMPL
+	// TODO : REFINE AND ADJUST UNTIL ACCEPTABLE.
+
+	TArray<UProceduralConnector*> AllUnbounds;
+
+	for (auto *currRoom : SpawnedRooms)
+		currRoom->GetUnboundConnectors(AllUnbounds, false);
+
+	struct PairedConnectors
+	{
+		UProceduralConnector *A;
+		UProceduralConnector *B;
+		float Dist;
+
+		PairedConnectors(UProceduralConnector* a, UProceduralConnector* b)
+		{
+			A = a;
+			B = b;
+			Dist = FVector::Dist(a->GetComponentLocation(), b->GetComponentLocation());
+		}
+
+		inline bool operator==(const PairedConnectors& o) const { return (A == o.A&&B == o.B) || (A == o.B&&B == o.A); }
+	};
+
+	TArray<PairedConnectors> AlreadyDone;
+	float avgDist = 0;
+	for (auto *currA : AllUnbounds)
+	{
+		for (auto *currB : AllUnbounds)
+		{
+			FVector dirTo = currA->GetComponentLocation() - currB->GetComponentLocation();
+			dirTo.Normalize();
+
+			if (currA != currB &&
+				currA->GetOwner() != currB->GetOwner() &&
+				FVector::DotProduct(currA->GetForwardVector(), currB->GetForwardVector()) > 0 &&
+				FVector::DotProduct(dirTo, currB->GetForwardVector()) > 0.25f &&
+				FVector::DotProduct(-dirTo, currA->GetForwardVector()) > 0.25f)
+			{
+				PairedConnectors ThisPair(currA, currB);
+
+				if (!AlreadyDone.Contains(ThisPair))
+				{
+					avgDist += ThisPair.Dist;
+					AlreadyDone.Add(MoveTemp(ThisPair));
+				}
+			}
+		}
+	}
+	avgDist /= AlreadyDone.Num();
+
+	AlreadyDone.RemoveAll([&avgDist](const PairedConnectors& a) { return a.Dist > avgDist; });
+
+	for (auto *currUnb : AllUnbounds)
+	{
+		if (nullptr == currUnb->BoundTo)
+		{
+
+			TArray<PairedConnectors> MyChoices = AlreadyDone.FilterByPredicate([&currUnb](const PairedConnectors& a) { return a.A == currUnb; });
+
+			if (MyChoices.Num() > 0)
+			{
+				MyChoices.Sort([](const PairedConnectors& a, const PairedConnectors& b) { return a.Dist < b.Dist; });
+
+				while (MyChoices.Num() > 0 && nullptr != MyChoices[0].B->BoundTo)
+					MyChoices.RemoveAt(0);
+
+				if (MyChoices.Num() > 0)
+				{
+					AProceduralSplineConnector* Corrid = GetWorld()->SpawnActor<AProceduralSplineConnector>(CorridorTypes[0]);
+					
+					if (Corrid)
+					{
+						TArray<FVector> points;
+						points.Add(currUnb->GetComponentLocation());
+						points.Add(MyChoices[0].B->GetComponentLocation());
+
+						Corrid->RootSpline->SetSplinePoints(points, ESplineCoordinateSpace::World, true);
+						Corrid->RootSpline->SetTangentAtSplinePoint(0, currUnb->GetForwardVector(), ESplineCoordinateSpace::World, true);
+						Corrid->RootSpline->SetTangentAtSplinePoint(1, -MyChoices[0].B->GetForwardVector(), ESplineCoordinateSpace::World, true);
+
+						FVector MidP = ((MyChoices[0].B->GetComponentLocation() - currUnb->GetComponentLocation()) / 2);
+						MidP += (currUnb->GetForwardVector() + MyChoices[0].B->GetForwardVector()) *(MidP.Size() / 2);
+
+						Corrid->RootSpline->AddSplinePointAtIndex(MidP+ currUnb->GetComponentLocation(), 1, ESplineCoordinateSpace::World, true);
+
+						Corrid->ConstructMeshes(RandStream);
+
+						if (!GetWorld()->EncroachingBlockingGeometry(Corrid, Corrid->GetActorLocation(), Corrid->GetActorRotation()))
+						{
+
+							currUnb->BindConnectorTo(MyChoices[0].B);
+							MyChoices[0].B->BindConnectorTo(currUnb);
+
+							//UKismetSystemLibrary::DrawDebugLine(this, currUnb->GetComponentLocation(), MyChoices[0].B->GetComponentLocation(), FLinearColor::Red, 10000, 100);
+						}
+					}
+
+				}
+
+				AlreadyDone.RemoveAll([&currUnb](const PairedConnectors& a) { return a.A == currUnb; });
+			}
+		}
+	}
+
+	for (int i = SpawnedRooms.Num() - 1; i >= 0; --i)
+	{
+		AProceduralRoom* currRoom = SpawnedRooms[i];
+		TArray<UProceduralConnector*> UnboundConnectors;
+
+		currRoom->GetUnboundConnectors(UnboundConnectors);
+
+		if (UnboundConnectors.Num() >= currRoom->Connectors.Num())
+		{
+			currRoom->Destroy();
+			SpawnedRooms.RemoveAt(i);
+		}
+
+	}
+
+
 
 	/*
 		TODO : Also find some way to add in the procedural terrain stuff.

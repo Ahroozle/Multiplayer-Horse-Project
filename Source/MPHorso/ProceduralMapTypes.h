@@ -724,6 +724,12 @@ public:
 		int MaxRoomPlacementAttempts = 10000;
 
 	/*
+	
+	*/
+	UPROPERTY(EditDefaultsOnly, Category = "Procedural Layout Generation|ProceduralArea")
+		TArray<TSubclassOf<AProceduralSplineConnector>> CorridorTypes;
+
+	/*
 		Areas that this area is willing to connecting to.
 
 		Used by the overarcing ProceduralMap when manipulating
