@@ -6,6 +6,9 @@
 #include "Components/SplineComponent.h"
 #include "Components/SplineMeshComponent.h"
 #include "Components/ChildActorComponent.h"
+
+#include "SimplexNoiseLibrary.h"
+
 #include "ProceduralMapTypes.generated.h"
 
 
@@ -911,3 +914,1453 @@ private:
 	TArray<AProceduralArea*> FinishedAreas;
 
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// TESTING SOME SHIT UNDER HERE
+
+
+//USTRUCT(BlueprintType)
+//struct FWorldTile
+//{
+//	GENERATED_USTRUCT_BODY();
+//
+//
+//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldTile")
+//		FVector Position;
+//
+//	// (-1)->1 value for how corrupt/pure the tile is.
+//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldTile")
+//		float Purity;
+//
+//	// (-1)->1 value for how cold/hot the tile is.
+//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldTile")
+//		float Temperature;
+//
+//	// 0->1 value for how rainy the average rainfall of this tile is. Also equals the chance that this tile will be rained upon.
+//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldTile")
+//		float Rainfall;
+//
+//	// 0->1 value for how easy it is for water to escape this tile.
+//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldTile")
+//		float Drainage;
+//
+//	// 0->1 value for how easy it is for plants to grow in this tile.
+//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldTile")
+//		float Fertility;
+//
+//	// 0->1 value for how salty this tile is ( on a scale of Not Salty to League of Legends :^) )
+//	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldTile")
+//		float Salinity;
+//};
+
+USTRUCT(BlueprintType)
+struct FSimplexOctaveSettings
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|SimplexOctaveSettings")
+		int Octaves;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|SimplexOctaveSettings")
+		float Persistence;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|SimplexOctaveSettings")
+		float NoiseScale;
+};
+
+USTRUCT()
+struct FSimplexWorm
+{
+	GENERATED_USTRUCT_BODY();
+
+	// The current position of the perlin worm in map coordinates.
+	FVector Pos;
+
+	// The current direction.
+	FVector Dir = FVector(1,1,1);
+
+	/*
+		The speed of the worm.
+
+		Adjusting this may cause the worm to create pockets instead
+		of tunnels, or not even be able to move at all in some cases.
+	*/
+	float WormSpeed = 2;
+
+	/*
+		this scales the range of the noise to allow for
+		the full range of angular shifting or even just
+		a fraction.
+	*/
+	float AngleVariance = 1;
+
+	// The octave settings for this worm.
+	FSimplexOctaveSettings WormOctaveSettings;
+
+	// The range of the worm's tunnel scooping size over its lifetime.
+	FVector2D SizeRange;
+
+	int CurrSize;
+
+	int SetVal = 0;
+
+	FRandomStream RandStream;
+
+	void Init(const FIntVector& pos, FVector2D& sizeRange, const FSimplexOctaveSettings& OctSettings, const float& AngVariance, UPARAM(Ref) FRandomStream& RandomStream, const int& valToSet)
+	{
+		Pos = FVector(pos);
+		WormOctaveSettings = OctSettings;
+		AngleVariance = AngVariance;
+		SizeRange = sizeRange;
+		SetVal = valToSet;
+		RandStream = RandomStream;
+	}
+
+	void Step(const float& currLifetime, const FVector& MapExtent)
+	{
+		// TODO : IMPL WORM STEP
+
+		int octaves = WormOctaveSettings.Octaves;					// 3
+		const float& persistence = WormOctaveSettings.Persistence;	// 0.5
+		const float& NoiseScale = WormOctaveSettings.NoiseScale;	// 0.01
+
+		FVector MapPoint = (FVector(Pos) - MapExtent) * NoiseScale;
+
+		float frequency = 1, amplitude = 1;
+		float AngA = 0, AngB = 0, AngC = 0;
+		float MaxVal = 0;
+		while (--octaves >= 0)
+		{
+			float PreA = USimplexNoiseLibrary::SimplexNoise2D(MapPoint.X * frequency, MapPoint.Y * frequency) * amplitude;
+			float PreB = USimplexNoiseLibrary::SimplexNoise2D(MapPoint.Y * frequency, MapPoint.Z * frequency) * amplitude;
+			float PreC = USimplexNoiseLibrary::SimplexNoise2D(MapPoint.Z * frequency, MapPoint.X * frequency) * amplitude;
+
+			float SignA = FMath::Sign(PreA);
+			float SignB = FMath::Sign(PreB);
+			float SignC = FMath::Sign(PreC);
+
+			if (SignA + SignB + SignC == 0)
+			{
+				AngA = Dir.X;
+				AngB = Dir.Y;
+				AngC = Dir.Z;
+
+				MaxVal = 1;
+
+				break;
+			}
+
+
+			AngA += PreA;
+			AngB += PreB;
+			AngC += PreC;
+
+			MaxVal += amplitude;
+			amplitude *= persistence;
+			frequency *= 2;
+
+			
+		}
+		//AngB = FMath::Acos(1 - (2 * ((AngB* AngleVariance) / MaxVal)));
+		//AngA = ((AngA* AngleVariance) / MaxVal) * 2 * PI;
+		AngA /= MaxVal;
+		AngB /= MaxVal;
+		AngC /= MaxVal;
+
+		/*
+			random point on sphere calc
+			here's a ref http://corysimon.github.io/articles/uniformdistn-on-sphere/
+
+			made sure that was what the OG worms algo was doing
+			by finding this link https://stackoverflow.com/questions/9879258/how-can-i-generate-random-points-on-a-circles-circumference-in-javascript
+
+			seems to check out so I'm using it.
+		*/
+		//Pos.X -= FMath::Sin(AngA) * FMath::Cos(AngB) * WormSpeed;
+		//Pos.Y -= FMath::Sin(AngA) * FMath::Sin(AngB) * WormSpeed;
+		//Pos.Z -= FMath::Cos(AngA) * WormSpeed;
+
+		Pos.Z += FMath::Cos(AngA*1.9f*PI) * (RandStream.RandRange(0, 1) == 0 ? -1 : 1) * AngleVariance * WormSpeed;
+		Pos.X += FMath::Sin(AngB*1.9f*PI) * (RandStream.RandRange(0, 1) == 0 ? -1 : 1) * AngleVariance * WormSpeed;
+		Pos.Y += FMath::Cos(AngC*1.9f*PI) * (RandStream.RandRange(0, 1) == 0 ? -1 : 1) * AngleVariance * WormSpeed;
+
+		Dir = FVector(AngA, AngB, AngC);
+
+		CurrSize = FMath::GetMappedRangeValueClamped({ 0.0f, 1.0f }, { SizeRange.X, SizeRange.Y }, currLifetime);
+	}
+
+	void Tunnel(UPARAM(Ref) TArray<TArray<TArray<char>>>& Map)
+	{
+		int furthestOut = FMath::CeilToInt(CurrSize);
+
+		for (int x = -furthestOut; x <= furthestOut; ++x)
+		{
+			for (int y = -furthestOut; y <= furthestOut; ++y)
+			{
+				for (int z = -furthestOut; z <= furthestOut; ++z)
+				{
+					FVector currInspected = Pos + FVector(x, y, z);
+					currInspected.X = FMath::RoundToInt(FMath::Clamp(currInspected.X, 0.0f, (float)Map.Num()-1));
+					currInspected.Y = FMath::RoundToInt(FMath::Clamp(currInspected.Y, 0.0f, (float)Map[0].Num()-1));
+					currInspected.Z = FMath::RoundToInt(FMath::Clamp(currInspected.Z, 0.0f, (float)Map[0][0].Num()-1));
+
+					if (/*0*/SetVal != Map[currInspected.X][currInspected.Y][currInspected.Z] &&
+						CurrSize >= FVector::Dist(FVector(Pos), FVector(currInspected)))
+					{
+						Map[currInspected.X][currInspected.Y][currInspected.Z] = /*0*/SetVal;
+					}
+				}
+			}
+		}
+	}
+
+};
+
+/*
+	The map, in the end, will be made out of things as follows:
+
+	- Topside Height Map (2D)
+			This represents everything facing upward on the map.
+
+	- Underside Height Map (2D)
+			This represents everything facing downward on the map.
+
+	- Falloff Map (2D)
+			This represents where the edges of the map are. The
+			further into the falloff the map gets, the closer to
+			the cutoff threshold it's guided, until it inevitably
+			passes it.
+
+	- Steepness Map (2D)
+			This is kind of just an ad-hoc map I'm using to make
+			sure that there's always stretches of flat ground
+			*somewhere* on the damn map after I realized that the
+			generator literally makes nothing but mountains.
+			Its sole purpose is to lower some parts of the top
+			height map down enough to be hill or plain-like.
+
+	- Offset Map (2D)
+			This represents the Z offset of any given tile on the
+			map, as a way to add some hilliness variance to the
+			average height of the zero on the map, as well as
+			add the possibility of smaller floating islands that
+			are unattached from the map being at a different
+			height than the main map.
+
+	- Base Terrain Map (3D)
+			This is interpreted from the combination of the
+			Topside Height, Underside Height, Falloff, and
+			Offset maps. Any terrain within the bounds specified
+			by their intersection is considered solid.
+
+	- Decay Map (3D)
+			This is used on the underside to create that
+			excellent breakage effect under the islands.
+			The more decay that's allowed the more
+			lower island gore there'll be.
+
+
+
+	- Structure Map (3D)
+			This is a map added at the very end which
+			represents all of the post-generation
+			structures on the map that have been
+			placed. These are generally unnatural
+			prefabs or places that are generally
+			procedurally generated separate from
+			the map and added in as a postprocess of
+			sorts.
+
+*/
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FGenFinishedNotify);
+
+// currently not concerning myself with mem usage; will get back to that later if it's an issue.
+
+UCLASS(Blueprintable)
+class MPHORSO_API AProceduralWholeMap : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	// Sets default values for this actor's properties
+	AProceduralWholeMap(const FObjectInitializer& _init);
+
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+
+public:
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
+	/*
+		The random stream, used for basically everything so that maps can be saved efficiently
+		with just a seed and some deltas.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		FRandomStream RandStream;
+
+	/*
+		Sets how fast iterations are progressed
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		float IterationTime = 0.01f;
+
+	/*
+		Tile X/Y/Z width, in UU.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		float TileSize = 100;
+
+	/*
+		The X width of the map in tiles
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		int MapWidth;
+
+	/*
+		the Y width of the map in tiles
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		int MapHeight;
+
+	/*
+		The maximum >0 Z height of the map in tiles.
+
+		This value gets applied to the Topside height
+		map.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "1"))
+		int TopMaxDepth;
+
+	// the thickness of the center slice
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "1"))
+		int EquatorThickness = 5;
+
+	/*
+		The maximum <0 Z height of the map in tiles.
+
+		This value gets applied to the Underside
+		height map.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "1"))
+		int UnderMaxDepth;
+
+	// stored result of TopMaxDepth + UnderMaxDepth;
+	UPROPERTY(BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		int FullDepth;
+
+	// Half the bounds of the map, stored for wide usage.
+	UPROPERTY(BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		FVector HalfBounds;
+
+	// currently being used for debug; contains all points which are solid after all ops.
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		TArray<FVector> SolidPoints;
+
+	/*
+		The maximum Z offset the OffsMap is allowed
+		to reach, measured as a 0->1 ratio from 
+		0->TopMaxDepth.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+		float MaxOffs;
+
+	/*
+		The maximum Z offset the OffsMap is allowed
+		to reach, measured as a (-1)->0 ratio from
+		UnderMaxDepth->0.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "-1.0", ClampMax = "0.0"))
+		float MinOffs;
+
+	/*
+		This represents the (-1)->1 height on the
+		Topside Heightmap at which the tile is
+		considered a hole.
+
+		at 1 this will erase the entire map.
+
+		at -1 this will leave little to no holes except
+		for at the edges of the map, possibly.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+		float HeightMapCutoffThreshold;
+
+	/*
+		This represents the 0->1 threshold
+		which differentiates flat sections
+		from mountains on the Topside
+		Heightmap.
+
+		any heights less than this are clamped
+		down to 0 while higher ones are allowed
+		to persist.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+		float SteepnessThreshold = 0.5f;
+
+	/*
+		This has some weird effects on mountains
+		and is connected to steepness calculations.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		float MountainScale = 3.0f;
+
+	/*
+		This represents the maximum variance allowed in island wear and tear,
+		and scales the decay value into it.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0"))
+		float MaxDecayVariance = 1.0f;
+
+	/*
+		The minimum number of worms created for tunnelling.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0"))
+		int MinNumWorms = 25;
+
+	/*
+		The maximum number of worms created for tunnelling.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0"))
+		int MaxNumWorms = 50;
+
+	/*
+		The minimum number of iterations the tunnelling worms
+		will go before they'll begin to stop.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0"))
+		int MinWormIterations = 50;
+
+	/*
+		The maximum number of iterations the tunnelling worms
+		will go before they are guaranteed to stop.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0"))
+		int MaxWormIterations = 100;
+
+	/*
+		The range of minimum radii a worm's
+		tunnel can be.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0"))
+		FVector2D MinWormSizes;
+
+	/*
+		The range of maximum radii a worm's
+		tunnel can be.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0"))
+		FVector2D MaxWormSizes;
+
+	/*
+		Determines the "curviness" of caves maybe.
+
+		0 basically means the worms will *always* go straight
+		1 is the maximum curviness of the worm's wander.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+		float WormAngleVariance = 1.0f;
+
+
+	/*
+		Octave settings for the default
+		implementations of their respective
+		Determination functions.
+
+		I encourage reuse of these if you're
+		implementing your own version of the
+		functionality and you still need
+		octave settings.
+	*/
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		FSimplexOctaveSettings SteepnessMapOctaveSettings = { 16, 0.75f, 0.005f };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		FSimplexOctaveSettings TopHeightMapOctaveSettings = { 8, 0.5f, 0.01f };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		FSimplexOctaveSettings BottomHeightMapOctaveSettings = { 4, 2.0f, 0.0025f };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		FSimplexOctaveSettings OffsetMapOctaveSettings = { 8, 0.5f, 0.0015f };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		FSimplexOctaveSettings DecayMapOctaveSettings = { 16, 0.8f, 0.01f };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Procedural World Generation|ProceduralWholeMap")
+		FSimplexOctaveSettings WormOctaveSettings = { 3, 0.5f, 0.01f };
+
+
+	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Procedural World Generation|ProceduralWholeMap")
+		FGenFinishedNotify GenerationFinishedDelegate;
+
+
+	/*
+		Begins generation of the map.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|ProceduralWholeMap")
+		void Build(int InitialRandSeed = 0);
+
+	/*
+		Iterates the world generation by one piece per frame.
+		Also used to allow for progress to be shown.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|ProceduralWholeMap")
+		void Iterate();
+
+	/*
+		functions which determine how each of the
+		individual piecemeal maps are constructed.
+	*/
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|ProceduralWholeMap")
+		float DetermineFalloff(const FVector& CurrPoint, const FVector& MapExtent);
+	float DetermineFalloff_Implementation(const FVector& CurrPoint, const FVector& MapExtent);
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|ProceduralWholeMap")
+		float DetermineSteepness(const FVector& CurrPoint, const FVector& MapExtent);
+	float DetermineSteepness_Implementation(const FVector& CurrPoint, const FVector& MapExtent);
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|ProceduralWholeMap")
+		float DetermineTopHeight(const FVector& CurrPoint, const FVector& MapExtent);
+	float DetermineTopHeight_Implementation(const FVector& CurrPoint, const FVector& MapExtent);
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|ProceduralWholeMap")
+		float DetermineUndersideHeight(const FVector& CurrPoint, const FVector& MapExtent);
+	float DetermineUndersideHeight_Implementation(const FVector& CurrPoint, const FVector& MapExtent);
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|ProceduralWholeMap")
+		float DetermineOffset(const FVector& CurrPoint, const FVector& MapExtent);
+	float DetermineOffset_Implementation(const FVector& CurrPoint, const FVector& MapExtent);
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|ProceduralWholeMap")
+		float DetermineDecay(const FVector& CurrPoint, const FVector& MapExtent);
+	float DetermineDecay_Implementation(const FVector& CurrPoint, const FVector& MapExtent);
+
+
+protected:
+
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		UTexture2D* TopHeightMapColorTexture;
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		UTexture2D* BottomHeightMapColorTexture;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		UTexture2D* TopHeightMapTexture;
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		UTexture2D* BottomHeightMapTexture;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		UTexture2D* FalloffMapTexture;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		UTexture2D* OffsetMapTexture;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		UTexture2D* SteepnessMapTexture;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|ProceduralWholeMap")
+		TArray<UTexture2D*> BaseTerrainMapSlices;
+
+
+	// MIP data pointers for the textures above.
+
+	FColor* TopColorMipData;
+	FColor* BotColorMipData;
+	FColor* TopMipData;
+	FColor* BotMipData;
+	FColor* FallMipData;
+	FColor* OffsMipData;
+	FColor* SteepMipData;
+
+
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|ProceduralWholeMap")
+		void GetTerrainIsosurface(UPARAM(Ref) class UProceduralMeshComponent*& ProcMeshComp);
+
+private:
+
+	UPROPERTY()
+		FTimerHandle IterationTimerHandle;
+
+	// The "iterator" of sorts that goes over every section
+	// of the map one at a time.
+	FIntVector MapIterator = FIntVector::ZeroValue;
+
+	// percent completion of each step
+
+	int TerrainMapProgress		= -1;
+
+	int WormProgress			= -1;
+
+
+	/*
+		Maps for keeping the data during
+		generation. These get dealloc'd
+		once paged into chunks for the
+		session
+	*/
+
+	/*
+		The main terrain map that takes
+		the brunt of the operations.
+	*/
+	TArray<TArray<TArray<char>>> TerrainMap;
+
+	/*
+		Starts for perlin worms, chosen
+		randomly out of the lowest and highest
+		surfaces.
+
+		The perlin worms I use to dig tunnels!
+
+		These are placed randomly at top and
+		underside height map locations first
+		and then iterated through until they've
+		all reached their limit.
+	*/
+	TArray<FSimplexWorm> Worms;
+
+	int OGNumWorms;
+	int currWormIterations; // current iteration all worms are on.
+
+
+	/*
+		marching cubes impl
+
+		returns false if it didn't make any new tris
+	*/
+	bool March(const FVector(&CubeVerts)[8], const char(&CubeVals)[8], TArray<FVector>& OutVerts);
+};
+
+/*
+	TODO : Perlin worms for tunnels!
+	https://www.youtube.com/watch?v=qxAHrLZ3COY
+
+	also wire up bridges with some kind of weighted point system?
+	use elevation changes to find where places don't meet up?
+	or a flood fill? idk rn rofl
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// TRYIN EVEN *MORE* STUFF DOWN HERE
+
+// Edge struct type, used during delaunay and MST calcs
+USTRUCT(BlueprintType)
+struct FSpanEdge
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector A;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector B;
+
+	FSpanEdge(){}
+
+	FSpanEdge(FVector a, FVector b) : A(a), B(b) {}
+
+	bool operator==(const FSpanEdge& o) const { return (A == o.A && B == o.B) || (B == o.A && A == o.B); }
+};
+
+// triangle struct type, used during delaunay and MST calcs
+USTRUCT(BlueprintType)
+struct FSpanTri
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector A;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector B;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector C;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpanEdge AB;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpanEdge BC;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpanEdge CA;
+
+	FSpanTri() {}
+
+	FSpanTri(FVector a, FVector b, FVector c)
+		: A(a), B(b), C(c), AB(a, b), BC(b, c), CA(c, a) {}
+
+	bool HasVert(FVector vert) const { return (A == vert || B == vert || C == vert); }
+
+	bool HasEdge(const FSpanEdge& edge) const { return (AB == edge || BC == edge || CA == edge); }
+
+	void GetCircumcircle(FVector& outCircumcenter, float& outCircumradius) const
+	{
+		FVector ab = FVector(FVector2D(B) - FVector2D(A), 0);
+		FVector bc = FVector(FVector2D(C) - FVector2D(B), 0);
+		FVector ca = FVector(FVector2D(A) - FVector2D(C), 0);
+
+		float s = (ab.Size() + bc.Size() + ca.Size()) / 2;
+		float KSq = s * (s - ab.Size())*(s - bc.Size())*(s - ca.Size());
+
+		outCircumcenter = (0.5f * (A + C)) + ((FVector::DotProduct(ab, bc) / (8 * KSq))*FVector::CrossProduct(ca, FVector::CrossProduct(ab, bc)));
+		outCircumradius = (ab.Size() * bc.Size() * ca.Size()) / (4 * FMath::Sqrt(KSq));
+	}
+
+	bool CircumContains(const FVector& Point) const
+	{
+		FVector Circumcenter;
+		float Circumradius;
+
+		GetCircumcircle(Circumcenter, Circumradius);
+
+		return ((Point - FVector(0, 0, Point.Z)) - Circumcenter).Size() <= Circumradius;
+	}
+
+	bool operator==(const FSpanTri& o) const { return (A == o.A || A == o.B || A == o.C ) &&
+													  (B == o.A || B == o.B || B == o.C ) &&
+													  (C == o.A || C == o.B || C == o.C ); }
+};
+
+// tetrahedron struct type, used during delaunay and MST calcs
+USTRUCT(BlueprintType)
+struct FSpanTetra
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector A;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector B;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector C;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector D;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpanTri ABC;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpanTri ABD;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpanTri BCD;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpanTri ACD;
+
+	FSpanTetra() {}
+
+	FSpanTetra(FVector a, FVector b, FVector c, FVector d)
+		: A(a), B(b), C(c), D(d), ABC(a, b, c), ABD(a, b, d), BCD(b, c, d), ACD(a, c, d) {}
+
+	bool HasVert(FVector vert) const { return (A == vert || B == vert || C == vert || D == vert); }
+
+	bool CircumContains(FVector Vert) const
+	{
+		// Finding the circumcenter of tetrahedron ABCD via the normals and circumcenters of ABC and BCD
+
+		// getting the normals of ABC and BCD early
+		FVector NormalABC = FVector::CrossProduct((C - A).GetSafeNormal(), (B - A).GetSafeNormal());
+		FVector NormalBCD = FVector::CrossProduct((C - B).GetSafeNormal(), (D - B).GetSafeNormal());
+
+
+		// getting the circumcenters of ABC and BCD
+		// formulas ripped from https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&ved=0ahUKEwjP3_WFlJfUAhViwlQKHfZqCxcQFggmMAA&url=http%3A%2F%2Fwww.kurtnalty.com%2FTriangle&usg=AFQjCNEmZ9PvvbjT0pVq1EYHJADvjIqJpA
+		// (pdf format)
+
+		FVector CircumcenterABC, CircumcenterBCD;
+		float CircumradiusABC, CircumradiusBCD;
+
+		ABC.GetCircumcircle(CircumcenterABC, CircumradiusABC);
+		BCD.GetCircumcircle(CircumcenterBCD, CircumradiusBCD);
+
+		NormalABC *= CircumradiusABC * 100000;
+		NormalBCD *= CircumradiusBCD * 100000;
+
+
+		FVector TetraCircumcenter;
+
+		{
+			// line intersection, grabbed from https://answers.unrealengine.com/questions/363361/intersection-between-two-lines.html
+
+			FVector da = CircumcenterBCD - CircumcenterABC;
+			FVector db = (CircumcenterBCD + NormalBCD) - (CircumcenterABC + NormalABC);
+			FVector dc = NormalABC;
+
+			FVector crossDaDb = FVector::CrossProduct(da, db);
+			float prod = FVector::DotProduct(crossDaDb, crossDaDb);
+
+			float res = FVector::DotProduct(FVector::CrossProduct(dc, db), FVector::CrossProduct(da, db) / prod);
+			TetraCircumcenter = CircumcenterABC + da * FVector(res, res, res);
+		}
+
+		float TetraCircumradius = (A - TetraCircumcenter).Size();
+
+
+		// and now we can *finally* do the god damn check
+
+		return (Vert - TetraCircumcenter).Size() <= TetraCircumradius;
+
+	}
+
+	bool operator==(const FSpanTetra& o) const { return (A == o.A || A == o.B || A == o.C || A == o.D) &&
+														(B == o.A || B == o.B || B == o.C || B == o.D) &&
+														(C == o.A || C == o.B || C == o.C || C == o.D) &&
+														(D == o.A || D == o.B || D == o.C || D == o.D); }
+};
+
+// point returned from some delaunay/MST calcs, usually specifies how many connections feed into this point.
+USTRUCT(BlueprintType)
+struct FRankedPoint
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector Point;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		float Rank = 1;
+
+};
+
+// structure created when obtaining a voronoi graph from a delaunay triangulation
+USTRUCT(BlueprintType)
+struct FSpanPoly
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<FSpanEdge> Sides;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector Site;
+
+	FSpanPoly() {}
+
+	FSpanPoly(FVector site) : Site(site) {}
+
+};
+
+UCLASS()
+class MPHORSO_API UWorldGenFuncLib : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UFUNCTION(BlueprintCallable)
+		static void InitializeWorldRandom(int RandSeed) { RandStream.Initialize(RandSeed); }
+
+	UFUNCTION(BlueprintCallable)
+		static const FRandomStream& GetWorldRandom() { return RandStream; }
+
+	UFUNCTION(BlueprintCallable)
+		static void ConnectPoints(UObject* WorldContext, const TArray<FVector>& InPoints, TArray<FSpanEdge>& OutEdges, TArray<FRankedPoint>& OutRankedPoints);
+
+	UFUNCTION(BlueprintCallable)
+		static void Delaunay3D(UObject* WorldContext, const TArray<FVector>& Points, TArray<FSpanTetra>& Tetras, TArray<FSpanEdge>& Edges);
+
+	UFUNCTION(BlueprintCallable)
+		static void Delaunay2D(UObject* WorldContext, const TArray<FVector>& Points, TArray<FSpanTri>& Tris, TArray<FSpanEdge>& Edges);
+
+	// attempted impl of kruskal's greedy MST algorithm
+	UFUNCTION(BlueprintCallable)
+		static void KruskalMST(const TArray<FVector>& Points, UPARAM(Ref) TArray<FSpanEdge>& InOutEdges);
+
+	UFUNCTION(BlueprintCallable)
+		static void Delaunay2DToVoronoi2D(UObject* WorldContext, const TArray<FSpanTri>& InDelaunay, TArray<FSpanPoly>& OutPolygons, TArray<FSpanEdge>& OutEdges, float MaxCircumcenterDistance = 0);
+
+private:
+
+	static FRandomStream RandStream;
+
+};
+
+
+/*
+	Structure containing voronoi cell data
+	for world generation classes.
+*/
+USTRUCT(BlueprintType)
+struct FWorldGenVoronoiCellData
+{
+	GENERATED_USTRUCT_BODY();
+
+	// The vertices of the region shape
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Voronoi Cell Data")
+		TArray<FVector> ShapeData_Verts;
+
+	// The edges of the region shape
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Voronoi Cell Data")
+		TArray<FSpanEdge> ShapeData_Edges;
+
+	// The voronoi centerpoint of the region shape.
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Voronoi Cell Data")
+		FVector ShapeData_Center;
+};
+
+/*
+	class that represents a subcell of a world cell,
+	used to update conditions like temperature, wind,
+	etc. on a less granular scale as well as
+	selectively update the state of pieces of the
+	world.
+*/
+UCLASS()
+class MPHORSO_API UWorldUpdateCell : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// The voronoi data for this update cell.
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Update Cell")
+		FWorldGenVoronoiCellData CellData;
+
+private:
+
+};
+
+/*
+	class that represents a single voronoi cell of the world map.
+*/
+UCLASS()
+class MPHORSO_API UWorldCell : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// The voronoi data for this world cell.
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Cell")
+		FWorldGenVoronoiCellData CellData;
+
+	// This cell's respective update subcells.
+	TArray<TSharedPtr<UWorldUpdateCell>> UpdateCells;
+
+	// All cells that share an edge with this one
+	TArray<TSharedPtr<UWorldCell>> NeighborCells;
+
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Cell")
+		void GetUpdateCells(TArray<UWorldUpdateCell*>& OutUpdateCells) { for (auto &curr : UpdateCells) OutUpdateCells.Add(curr.Get()); }
+
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Cell")
+		void GetNeighborCells(TArray<UWorldCell*>& OutNeighbors) { for (auto &curr : NeighborCells) OutNeighbors.Add(curr.Get()); }
+
+private:
+
+};
+
+/*
+	This is an extra step in between continents and
+	cells used to segregate biomes from one another.
+*/
+UCLASS()
+class MPHORSO_API UWorldRegion : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// The world cells that make up this world region.
+	TArray<TSharedPtr<UWorldCell>> Cells;
+
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Continent")
+		void GetCells(TArray<UWorldCell*>& OutRegionCells) { for (auto &curr : Cells) OutRegionCells.Add(curr.Get()); }
+
+private:
+
+};
+
+/*
+	class that represents a single "continent" in the world
+	i.e. a neighborhood of connected world cells.
+
+	Separate islands are separate "continents."
+*/
+UCLASS()
+class MPHORSO_API UWorldContinent : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// The world regions which make up this continent
+	TArray<TSharedPtr<UWorldRegion>> Regions;
+
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Continent")
+		void GetRegions(TArray<UWorldRegion*>& OutRegions) { for (auto &curr : Regions) OutRegions.Add(curr.Get()); }
+
+private:
+
+};
+
+/*
+	Class used to store the unit-unbound world
+	data.
+
+	Contains redundant data in multiple degrees
+	of granularity for ease of manipulation.
+*/
+UCLASS()
+class MPHORSO_API UWorldMap : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// The update cells of the world, stored for ease-of-access
+	TArray<TSharedPtr<UWorldUpdateCell>> UpdateCells;
+
+	// The world cells that make up the entire map.
+	TArray<TSharedPtr<UWorldCell>> WorldCells;
+
+	// The world regions/biomes, for biome-wide operatopns.
+	TArray<TSharedPtr<UWorldRegion>> WorldRegions;
+
+	// The world cells' continents, for continent-wide operations.
+	TArray<TSharedPtr<UWorldContinent>> WorldContinents;
+
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
+		void GetWorldUpdateCells(TArray<UWorldUpdateCell*>& OutUpdateCells) { for (auto &curr : UpdateCells) OutUpdateCells.Add(curr.Get()); }
+
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
+		void GetWorldCells(TArray<UWorldCell*>& OutWorldCells) { for (auto &curr : WorldCells) OutWorldCells.Add(curr.Get()); }
+
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
+		void GetWorldRegions(TArray<UWorldRegion*>& OutWorldRegions) { for (auto &curr : WorldRegions) OutWorldRegions.Add(curr.Get()); }
+
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
+		void GetWorldContinents(TArray<UWorldContinent*>& OutWorldContinents) { for (auto &curr : WorldContinents) OutWorldContinents.Add(curr.Get()); }
+
+	void AddUpdateCell(UWorldUpdateCell* NewUpdateCell);
+	void AddCell(UWorldCell* NewCell);
+	void AddRegion(UWorldRegion* NewRegion);
+	void AddContinent(UWorldContinent* NewContinent);
+
+private:
+
+};
+
+/*
+	This class represents a function used to determine
+	which parts of a world/island are land and which
+	parts are water/holes.
+*/
+UCLASS(Blueprintable)
+class MPHORSO_API UWorldShapeFunction : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	/*
+		This function determines which parts of
+		the world map are considered land and which
+		parts should be slated to determined as
+		either holes in the maps or lakes/oceans.
+
+		A flood fill is used later to determine
+		the outermost "ocean", which becomes the
+		bounding hole of the floating island, and
+		then which isolated pockets become smaller,
+		internal holes or lakes is chosen randomly,
+		methodically, or both.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural World Generation|World Shape Function")
+		void DetermineShape(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells);
+	void DetermineShape_Implementation(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells) {}
+
+private:
+
+};
+
+/*
+	A world generation pass
+*/
+UCLASS(Blueprintable)
+class MPHORSO_API UWorldGenPass : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|World Generation Pass")
+		void Apply(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells);
+	virtual void Apply_Implementation(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells) {}
+
+private:
+
+};
+
+/*
+	The world generator class!
+
+	This class is in charge of creating
+	the cell-based representation of the
+	map, to later be fed into the world
+	rasterizer.
+*/
+UCLASS(Blueprintable)
+class MPHORSO_API UWorldGenerator : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// The world map.
+	TSharedPtr<UWorldMap> WorldMap;
+
+	/*
+		The X, Y, and Z bounds of the map.
+
+		This is used to determine the bounds
+		within which the islands are slated
+		to generate. The space allowance for
+		an island is given as a bounding
+		box of 1/N * (X, Y, Z), where N
+		is the number of islands to be created.
+	*/
+	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Mapper", meta = (ClampMin = "1.0"))
+		FVector MapDimensions;
+
+	/*
+		An array of the shape an island will
+		be created with.
+
+		Also, the length of this array represents
+		the number of islands which will be created.
+
+		If you wish multiple islands to be made with
+		the same island function, simply create multiple
+		of the same type of entry in the array.
+	*/
+	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Mapper", meta = (ClampMin = "1.0"))
+		TArray<TSubclassOf<UWorldShapeFunction>> Islands;
+
+	/*
+		The generation passes, in order of
+		occurrence.
+	*/
+	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Mapper")
+		TArray<TSubclassOf<UWorldGenPass>> Passes;
+
+
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Generator")
+		UWorldMap* GetWorldMap() { return WorldMap.Get(); }
+	
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Generator")
+		void Generate(UWorldMap*& OutGenerated, int InitialRandSeed = 0);
+
+private:
+
+};
+
+
+USTRUCT(BlueprintType)
+struct FWorldRasterizationSettings
+{
+	GENERATED_USTRUCT_BODY();
+
+	// The size of a tile, in X*Y*Z Unreal Units.
+	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Rasterization Settings")
+		FVector TileDimensions;
+
+	// The size of the tiled world created, in X*Y*Z Chunks
+	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Rasterization Settings")
+		FVector WorldDimensions;
+};
+
+/*
+	This class translates the world cell data
+	into tile data that can be used granularly
+	in-game.
+*/
+UCLASS(Blueprintable)
+class MPHORSO_API UWorldRasterizer : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Rasterizer")
+		void RasterizeWorld(const FWorldRasterizationSettings& RasterSettings, UWorldMap* WorldMap);
+
+private:
+
+};
+
+
+/*
+	TODO (+ writing downs):
+
+		Switch terrain generation system over from simplex-based to voronoi-based
+
+		Delaunay
+			|
+			V
+		Voronoi (Cut edges to bounds)
+			|
+			V
+		Determine Holes VS Water
+			|
+			V
+		Assign Elevations
+			|
+			V
+		Create Rivers
+			|
+			V
+		(Special Attr Passes?)
+			|
+			V
+		Create Biomes
+			|
+			V
+		Create Places
+			|
+			V
+		Create Roads
+
+
+		Elevation stuff:
+			Whatever terrain elevation stuff on top, and then cones on the bottoms
+			of cells depending on their elevation?
+
+			Have voronoi cells very obviously switch elevation in steps and then
+			build roads that more gradually interpolate between their elevations
+			so that they're the easier path to take?
+
+		Store Voronoi Cells as the chunks?
+
+		Worldgen takes arbitrary passes and such.
+		void Pass::Apply(InOut WorldMap&)
+
+		Built-in "inherent" tile attributes as specific variables, and then
+		Map<FName, Variant> for special-er attributes?
+
+		FIND A WAY TO MAKE CHUNK LODS
+			either downsample the map or maybe even slowly
+			transition between more and more just the voronoi shape?
+
+			ofc will need to destroy/create mesh sections more ofte
+			than just updating them to do any good
+
+			Thought:
+				Highest LOD level: Marching cubes of the cell.
+				Lowest LOD level: Polygonal prism of the cell.
+
+				and then of course somehow deduce the in-between
+				LODS from these two extremes.
+
+				Also look up how to keep collision consistent
+				between LODs.
+
+		CHUNK PAGING
+			Maybe just temporary paging for the duration of a game
+			so that save files can *also* take up as little space
+			as possible at the downside of some longer loading
+			times for worlds since it has to regenerate them?
+
+		SAVE FILES
+			Obviously want to just make a save file that only
+			contains the world seed (and maybe settings but only 
+			if I make them user-changeable) and various deltas
+			(probably chunk-space).
+
+		ENVIRONMENT DAEMONS
+			What if I put real-time environmental changes on
+			separate worker threads with eternal loops until
+			broken by some condition (either game ending or
+			otherwise).
+
+			... I could even link them to stop working or
+			completely change how they work depending on
+			in-game stuff. Imagine killing the god of
+			wind and all the wind literally stops.
+			*Now you're thinking with incredibly bad
+			ideas* :^)
+
+		AREA DIFFICULTIES
+			Should difficulty of area be based on ease of
+			accessibility of said area, or should ease of
+			accessibility be based on a pre-determined
+			difficulty for the type of area?
+
+		WORLD UPDATES
+			maybe also have LODs for terrain updates?
+			i.e. the more relevant a given chunk/cell
+			is to the player the more frequently and/or
+			granularly it's updated, while further out,
+			less-relevant chunks are updated less
+			frequently and as a wholesale chunk value
+			which then the details are 'caught up'
+			with when the chunk becomes relevant sometime
+			in the future.
+
+		WORLD EVENTS
+			i.e. things like meteor impacts and stuff.
+			I was thinking of making some sort of
+			'predestining' system which either sometime
+			before or at the beginning of the event
+			all of its required details are calculated
+			in the background. e.g. for a meteor impact
+			the first two things I'd need to precalc
+			are the starting position and the ending
+			position. Then, if I wanted to (which I
+			most likely will) I could also precalc
+			the resulting crater and where meteor
+			pieces would end up, so that none of
+			those calcs would need to happen in
+			real time and I can still make a wowing
+			gameplay spectacle for players to react
+			to and enjoy.
+
+			This would be in stark contrast to how
+			terraria does *its* meteors, where you
+			literally never see or are around for
+			the meteor impact and it just spawns in
+			the middle of nowhere. It feels rather
+			anticlimactic, although maybe there's
+			some kind of design principle behind it
+			that I'm not picking up that makes it
+			a genius move, who knows.
+
+		AI STUFF
+			Even though I really, *really* like thinking
+			up more complex AI systems the fact is that
+			I'm running on a very empty budget and I need
+			to create systems that are cheap but effective.
+
+			So I'll have to simplify the system a bit,
+			definitely.
+
+			Rule Databases *might* still be used for things
+			like NPC dialogue and whatnot but their overall
+			behavior ultimately should probably be much
+			simpler, albeit at a larger scale that should
+			make the world feel alive and connected.
+
+			once roads are created I also might need to
+			assign them an area type cost that's lower
+			than most other ways so that NPCs prefer
+			to stay near or on roads. Maybe not even
+			that, maybe just steer them from relevant
+			point-to-point on the road with a steering
+			algorithm and depending on other factors
+			make them veer off or take shortcuts.
+
+			idk rofl, I have stuff to do right now and
+			this isn't relevant to development yet.
+
+			
+			On the subject of enemy AI I still don't
+			really know which way to go. I'll have to
+			research more methods of AI handling to
+			find a method I prefer above the others
+			or just mix some together in some weird
+			way.
+
+			MAYBE some kind of rule system but really
+			idk since that seems a bit much for a
+			most likely finite set of unique player
+			actions, as well as might be tedious to
+			generate content for. Might find some
+			way to piggy back off of behavior trees
+			in a way which allows backing out of a
+			current tree if something of a 'higher
+			priority' pops up and then an enemy's
+			'intelligence' could just be chalked
+			up to how many kinds of player actions
+			an enemy has the ability to react to
+			or counteract.
+
+		Also couple things:
+			A) Unless marching cubes is for some reason
+			   exiting the building then players will
+			   need their max slope changed to 45 or so
+			   degrees to deal with the steep changes in
+			   slope caused by the algorithm.
+			B) Stemming off from that slightly, remember
+			   to devise a system to allow disorientation
+			   of players' skeletalspritebodies while
+			   not accidentally breaking the game. i.e.
+			   for purposes of aligning to terrain, or
+			   allowing players to "tumble" or be sent
+			   flying with their body at an angle
+			   without hindering gameplay.
+
+			Initial thoughts on this: Allow the
+			player to cancel the "animation" of
+			sorts through their own input. If
+			input is available to the player
+			while they are tumbling, their
+			action takes priority over the
+			gameplay-caused one and their
+			body snaps back into the proper
+			orientation, preferrably with a
+			special animation and maybe a
+			sound as extra feedback for their
+			exiting of the situation. An
+			animation snap should be relatively
+			unnoticeable with said proper 
+			feedback and the fact that the
+			game's graphical style already
+			constitutes snappiness of
+			animation.
+
+		BIOME STUFF
+			I want to be able to name continents,
+			biomes, etc. in a fashion which suits
+			their attributes and in such a way
+			as to be easily referenceable by NPCs
+			so that they can give directions.
+			I'll have to think on this for a while
+			before I know a good method by which to
+			do this, since it's a rather tough
+			cookie to crack and I'm not sure what
+			the best course of action would be yet.
+*/

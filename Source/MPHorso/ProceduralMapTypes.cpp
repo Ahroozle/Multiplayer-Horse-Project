@@ -487,9 +487,9 @@ void AProceduralArea::Finalize()
 
 			if (currA != currB &&
 				currA->GetOwner() != currB->GetOwner() &&
-				FVector::DotProduct(currA->GetForwardVector(), currB->GetForwardVector()) > 0 &&
-				FVector::DotProduct(dirTo, currB->GetForwardVector()) > 0.25f &&
-				FVector::DotProduct(-dirTo, currA->GetForwardVector()) > 0.25f)
+				FVector::DotProduct(currA->GetForwardVector(), currB->GetForwardVector()) <= 0 &&
+				FVector::DotProduct(dirTo, currB->GetForwardVector()) > /*0.25*/0.5f &&
+				FVector::DotProduct(-dirTo, currA->GetForwardVector()) > /*0.25*/0.5f)
 			{
 				PairedConnectors ThisPair(currA, currB);
 
@@ -651,6 +651,1301 @@ void AProceduralMap::OnAreaFinishedBuilding(AProceduralArea* FinishedArea)
 }
 
 void AProceduralMap::PreFinalize()
+{
+	// TODO : IMPL
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include "ProceduralMeshComponent.h"
+
+
+AProceduralWholeMap::AProceduralWholeMap(const FObjectInitializer& _init) : Super(_init)
+{
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	PrimaryActorTick.bCanEverTick = true;
+
+	bReplicates = true;
+	bReplicateMovement = true;
+
+	RootComponent = _init.CreateDefaultSubobject<USceneComponent>(this, TEXT("RootComponent"));
+
+}
+
+void AProceduralWholeMap::BeginPlay()
+{
+	Super::BeginPlay();
+
+}
+
+void AProceduralWholeMap::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+}
+
+void AProceduralWholeMap::Build(int InitialRandSeed)
+{
+	RandStream.Initialize(InitialRandSeed);
+
+	USimplexNoiseLibrary::setNoiseSeed(RandStream.GetUnsignedInt());
+
+
+	TerrainMap.AddDefaulted(MapWidth);
+
+
+	TopHeightMapColorTexture = UTexture2D::CreateTransient(MapWidth, MapHeight);
+	BottomHeightMapColorTexture = UTexture2D::CreateTransient(MapWidth, MapHeight);
+	TopHeightMapTexture = UTexture2D::CreateTransient(MapWidth, MapHeight);
+	BottomHeightMapTexture = UTexture2D::CreateTransient(MapWidth, MapHeight);
+	FalloffMapTexture = UTexture2D::CreateTransient(MapWidth, MapHeight);
+	OffsetMapTexture = UTexture2D::CreateTransient(MapWidth, MapHeight);
+	SteepnessMapTexture = UTexture2D::CreateTransient(MapWidth, MapHeight);
+
+
+	TopColorMipData = static_cast<FColor*>(TopHeightMapColorTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	BotColorMipData = static_cast<FColor*>(BottomHeightMapColorTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	TopMipData = static_cast<FColor*>(TopHeightMapTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	BotMipData = static_cast<FColor*>(BottomHeightMapTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	FallMipData = static_cast<FColor*>(FalloffMapTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	OffsMipData = static_cast<FColor*>(OffsetMapTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	SteepMipData = static_cast<FColor*>(SteepnessMapTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+
+
+	FullDepth = (TopMaxDepth*2) + (UnderMaxDepth*2);
+
+	HalfBounds.X = float(MapWidth) / 2;
+	HalfBounds.Y = float(MapHeight) / 2;
+	HalfBounds.Z = float(FullDepth) / 2;
+
+	for (int col = 0; col < MapWidth; ++col)
+	{
+		TerrainMap	[col].AddDefaulted(MapHeight);
+
+		for (int row = 0; row < MapHeight; ++row)
+			TerrainMap	[col][row].AddDefaulted(FullDepth);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer(IterationTimerHandle, this, &AProceduralWholeMap::Iterate, IterationTime, true);
+}
+
+void AProceduralWholeMap::Iterate()
+{
+	FVector MapPoint = FVector(MapIterator) - HalfBounds;
+
+	if (TerrainMapProgress < 100)
+	{
+		float Falloff = DetermineFalloff(MapPoint, HalfBounds);
+		float Steepness = DetermineSteepness(MapPoint, HalfBounds);
+		float TopH = DetermineTopHeight(MapPoint, HalfBounds) - Falloff;
+		float UndH = DetermineUndersideHeight(MapPoint, HalfBounds);
+
+		if (TopH < HeightMapCutoffThreshold)
+			TopH = UndH = -1;
+		else if (TopH < Steepness)
+			TopH *= Steepness*Steepness;
+		else
+			TopH *= (TopH - Steepness)*MountainScale;
+
+		float Offset = FMath::GetMappedRangeValueClamped({ -1,1 }, { MinOffs,MaxOffs }, DetermineOffset(MapPoint, HalfBounds));
+
+		{
+			// texture stuff
+
+			float& TopHeight = TopH;
+			float& BotHeight = UndH;
+			float& FallAmt = Falloff;
+			float& OffsetAmt = Offset;
+			float& SteepAmt = Steepness;
+			int index = MapWidth * MapIterator.X + MapIterator.Y;
+
+			FLinearColor TopColor = FMath::Lerp(FLinearColor(FColor::Cyan), FLinearColor::Green, TopHeight);
+			FLinearColor BotColor = FMath::Lerp(FLinearColor(FColor::FromHex("#A9A9A9")), FLinearColor(FColor::FromHex("#696969")), BotHeight);
+
+			TopColor.A = (TopHeight > -1 ? 1 : 0);
+			BotColor.A = (BotHeight > -1 ? 1 : 0);
+
+			TopColorMipData[index] = TopColor.ToFColor(true);
+			BotColorMipData[index] = BotColor.ToFColor(true);
+
+			float TopClamp = FMath::Clamp(TopHeight, 0.0f, 1.0f);
+			float BotClamp = FMath::Clamp(BotHeight, 0.0f, 1.0f);
+			TopMipData[index] = FColor(uint8(255 * TopClamp), uint8(255 * TopClamp), uint8(255 * TopClamp));
+			BotMipData[index] = FColor(uint8(255 * BotClamp), uint8(255 * BotClamp), uint8(255 * BotClamp));
+
+			uint8 Fall = (uint8)FMath::GetMappedRangeValueClamped({ -1,1 }, { 0,255 }, FallAmt);
+			FallMipData[index] = FColor(Fall, Fall, Fall);
+
+			uint8 Offs = (uint8)FMath::GetMappedRangeValueClamped({ -1,1 }, { 0,255 }, OffsetAmt);
+			OffsMipData[index] = FColor(Offs, Offs, Offs);
+
+			uint8 Steep = (uint8)FMath::GetMappedRangeValueClamped({ 0,1 }, { 0,255 }, SteepAmt);
+			SteepMipData[index] = FColor(Steep, Steep, Steep);
+		}
+
+		if (TopH > -1)
+		{
+			for (int z = 0; z < FullDepth; ++z)
+			{
+				float ZMapped = float(z) - (FullDepth / 2.0f);
+
+				float OffsMapped = FMath::GetMappedRangeValueClamped({ -1.0f, 1.0f }, { -float(UnderMaxDepth),float(TopMaxDepth) }, Offset);
+
+				float UndBoundMapped = FMath::GetMappedRangeValueClamped({ -1.0f, 0.0f }, { -float(UnderMaxDepth), /*1.0f*/-(EquatorThickness*(1-Falloff)) }, -FMath::Clamp(UndH, 0.0f, 1.0f));
+				float TopBoundMapped = FMath::GetMappedRangeValueClamped({ 0.0f, 1.0f }, { /*1.0f*/ (EquatorThickness*(1-Falloff)), float(TopMaxDepth) }, FMath::Clamp(TopH, 0.0f, 1.0f));
+
+				UndBoundMapped += OffsMapped;
+				TopBoundMapped += OffsMapped;
+
+				float BaseTerrain = float(ZMapped <= TopBoundMapped && ZMapped >= UndBoundMapped ? 1 : 0);
+
+				FVector MapPoint3D = MapPoint;
+				MapPoint3D.Z = float(z) - HalfBounds.Z;
+
+				float Decay = DetermineDecay(MapPoint3D, HalfBounds) * MaxDecayVariance;
+
+				Decay *= FMath::Clamp((UndBoundMapped - ZMapped) / UndBoundMapped, 0.0f, 1.0f);
+
+				if (BaseTerrain > 0)
+					TerrainMap[MapIterator.X][MapIterator.Y][z] = FMath::Clamp(FMath::RoundToInt((BaseTerrain + Decay)/2.0f), 0, 1);
+			}
+		}
+
+		++MapIterator.Y;
+		if (MapIterator.Y == MapHeight)
+		{
+			MapIterator.Y = 0;
+			++MapIterator.X;
+
+			if (MapIterator.X == MapWidth)
+			{
+				MapIterator = FIntVector::ZeroValue;
+				TerrainMapProgress = 100;
+
+				TopHeightMapColorTexture->PlatformData->Mips[0].BulkData.Unlock();
+				BottomHeightMapColorTexture->PlatformData->Mips[0].BulkData.Unlock();
+				TopHeightMapTexture->PlatformData->Mips[0].BulkData.Unlock();
+				BottomHeightMapTexture->PlatformData->Mips[0].BulkData.Unlock();
+				FalloffMapTexture->PlatformData->Mips[0].BulkData.Unlock();
+				OffsetMapTexture->PlatformData->Mips[0].BulkData.Unlock();
+				SteepnessMapTexture->PlatformData->Mips[0].BulkData.Unlock();
+
+				TopHeightMapColorTexture->UpdateResource();
+				BottomHeightMapColorTexture->UpdateResource();
+				TopHeightMapTexture->UpdateResource();
+				BottomHeightMapTexture->UpdateResource();
+				FalloffMapTexture->UpdateResource();
+				OffsetMapTexture->UpdateResource();
+				SteepnessMapTexture->UpdateResource();
+
+				// OPEN THE WORM CAN
+				while (Worms.Num() < MaxNumWorms)
+				{
+					FIntVector currpick(RandStream.RandRange(0, MapWidth - 1), RandStream.RandRange(0, MapHeight - 1), FMath::RoundToInt(RandStream.FRandRange(0, 1)) * (FullDepth - 1));
+
+					if (currpick.Z == 0)
+					{
+						// cast line up to nearest solid point on underside
+
+						while (currpick.Z < FullDepth && 0 == TerrainMap[currpick.X][currpick.Y][currpick.Z])
+							++currpick.Z;
+					}
+					else
+					{
+						// cast line down to nearest solid point on topside
+
+						while (currpick.Z > -1 && 0 == TerrainMap[currpick.X][currpick.Y][currpick.Z])
+							--currpick.Z;
+					}
+
+					if (currpick.Z < FullDepth && currpick.Z > -1)
+					{
+						FVector2D SizeRange(RandStream.FRandRange(MinWormSizes.X, MinWormSizes.Y), RandStream.FRandRange(MaxWormSizes.X, MaxWormSizes.Y));
+						Worms[Worms.AddDefaulted()].Init(currpick, SizeRange, WormOctaveSettings, WormAngleVariance, RandStream, /*RandStream.FRandRange(0, 1) < 0.2f ? 1 :*/ 0);
+					}
+
+					if (Worms.Num() > MinNumWorms && RandStream.FRandRange(0, 1) < 0.2f)
+						break;
+				}
+
+
+				OGNumWorms = Worms.Num();
+			}
+		}
+
+		if (TerrainMapProgress != 100)
+		{
+			int PrevProgress = TerrainMapProgress;
+			TerrainMapProgress = (float(MapIterator.X) / MapWidth) * 100;
+			if (PrevProgress != TerrainMapProgress)
+				UStaticFuncLib::Print("Base Terrain Map Progress At " + FString::FromInt(TerrainMapProgress) + "%", true);
+		}
+		else
+			UStaticFuncLib::Print("Base Terrain Map Generated.", true);
+	}
+	else if (WormProgress < 100)
+	{
+		for (int currWorm = Worms.Num() - 1; currWorm >= 0; --currWorm)
+		{
+			//FVector PrevPos = ((FVector(Worms[currWorm].Pos) - HalfBounds)*TileSize) + GetActorLocation();
+			Worms[currWorm].Step(FMath::Clamp(float(currWormIterations) / MinWormIterations, 0.0f, 1.0f), HalfBounds);
+			//UKismetSystemLibrary::DrawDebugLine(this, PrevPos, ((FVector(Worms[currWorm].Pos) - HalfBounds)*TileSize) + GetActorLocation(), FLinearColor::Red, 10000, 10);
+
+			Worms[currWorm].Tunnel(TerrainMap);
+
+			if (currWormIterations >= MaxWormIterations || (currWormIterations >= MinWormIterations && RandStream.FRandRange(0, 1) < 0.2f))
+			{
+				Worms.RemoveAt(currWorm);
+			}
+		}
+
+		++currWormIterations;
+
+
+		if (Worms.Num() < 1)
+		{
+			WormProgress = 100;
+
+			GetWorld()->GetTimerManager().ClearTimer(IterationTimerHandle);
+			GenerationFinishedDelegate.Broadcast();
+		}
+
+		if (WormProgress != 100)
+		{
+			int PrevProgress = WormProgress;
+			WormProgress = (1 - (float(Worms.Num()) / OGNumWorms)) * 100;
+			if (PrevProgress != WormProgress)
+				UStaticFuncLib::Print("Cave Digging Progress At " + FString::FromInt(WormProgress) + "%", true);
+		}
+		else
+			UStaticFuncLib::Print("Caves Generated.", true);
+	}
+}
+
+float AProceduralWholeMap::DetermineFalloff_Implementation(const FVector& CurrPoint, const FVector& MapExtent)
+{
+	return FMath::GetMappedRangeValueClamped({ 2.8f, 3.0f }, { 0.0f, 1.0f }, (CurrPoint / (MapExtent*0.45f)).Size());
+}
+
+float AProceduralWholeMap::DetermineSteepness_Implementation(const FVector& CurrPoint, const FVector& MapExtent)
+{
+
+	int octaves = SteepnessMapOctaveSettings.Octaves;						//8;
+	const float& persistence = SteepnessMapOctaveSettings.Persistence;		//0.5f;
+	const float& NoiseScale = SteepnessMapOctaveSettings.NoiseScale;		//0.0015f;
+
+	FVector MapPoint = CurrPoint * NoiseScale;
+
+	float frequency = 1, amplitude = 1, ResultVal = 0, maxval = 0;
+	while (--octaves >= 0)
+	{
+		ResultVal += USimplexNoiseLibrary::SimplexNoise2D(MapPoint.X * frequency, MapPoint.Y * frequency/*, -1, 1*/) * amplitude;
+		maxval += amplitude;
+		amplitude *= persistence;
+		frequency *= 2;
+	}
+
+	return FMath::GetMappedRangeValueClamped({ -3.0f, 3.0f }, { 0.0f, SteepnessThreshold }, FMath::Pow(3, ResultVal / maxval));
+}
+
+float AProceduralWholeMap::DetermineTopHeight_Implementation(const FVector& CurrPoint, const FVector& MapExtent)
+{
+	int octaves = TopHeightMapOctaveSettings.Octaves;					//8;
+	const float& persistence = TopHeightMapOctaveSettings.Persistence;	//0.5f;
+	const float& NoiseScale = TopHeightMapOctaveSettings.NoiseScale;	//0.01f;
+	FVector MapPoint = CurrPoint * NoiseScale;
+
+	float frequency = 1, amplitude = 1, ResultVal = 0, maxval = 0;
+	while (--octaves >= 0)
+	{
+		ResultVal += USimplexNoiseLibrary::SimplexNoise2D(MapPoint.X * frequency, MapPoint.Y * frequency/*, -1, 1*/) * amplitude;
+		maxval += amplitude;
+		amplitude *= persistence;
+		frequency *= 2;
+	}
+
+	return ResultVal /= maxval;
+}
+
+float AProceduralWholeMap::DetermineUndersideHeight_Implementation(const FVector& CurrPoint, const FVector& MapExtent)
+{
+	int octaves = BottomHeightMapOctaveSettings.Octaves;					//4;
+	const float& persistence = BottomHeightMapOctaveSettings.Persistence;	//2;
+	const float& NoiseScale = BottomHeightMapOctaveSettings.NoiseScale;		//0.0025f;
+	FVector MapPoint = -CurrPoint * NoiseScale;
+
+	float frequency = 1, amplitude = 1, ResultVal = 0, maxval = 0;
+	while (--octaves >= 0)
+	{
+		ResultVal += USimplexNoiseLibrary::SimplexNoise2D(MapPoint.X * frequency, MapPoint.Y * frequency/*, -1, 1*/) * amplitude;
+		maxval += amplitude;
+		amplitude *= persistence;
+		frequency *= 2;
+	}
+
+	return ResultVal /= maxval;
+}
+
+float AProceduralWholeMap::DetermineOffset_Implementation(const FVector& CurrPoint, const FVector& MapExtent)
+{
+	int octaves = OffsetMapOctaveSettings.Octaves;						//8;
+	const float& persistence = OffsetMapOctaveSettings.Persistence;		//0.5f;
+	const float& NoiseScale = OffsetMapOctaveSettings.NoiseScale;		//0.0015f;
+
+	FVector MapPoint = CurrPoint * NoiseScale;
+
+	float frequency = 1, amplitude = 1, ResultVal = 0, maxval = 0;
+	while (--octaves >= 0)
+	{
+		ResultVal += USimplexNoiseLibrary::SimplexNoise2D(MapPoint.X * frequency, MapPoint.Y * frequency/*, -1, 1*/) * amplitude;
+		maxval += amplitude;
+		amplitude *= persistence;
+		frequency *= 2;
+	}
+
+	return ResultVal / maxval;
+}
+
+float AProceduralWholeMap::DetermineDecay_Implementation(const FVector& CurrPoint, const FVector& MapExtent)
+{
+	int octaves = DecayMapOctaveSettings.Octaves;						//16;
+	const float& persistence = DecayMapOctaveSettings.Persistence;		//0.8f;
+	const float& NoiseScale = DecayMapOctaveSettings.NoiseScale;		//0.005f;
+
+	FVector MapPoint = CurrPoint * NoiseScale;
+
+	float frequency = 1, amplitude = 1, ResultVal = 0, maxval = 0;
+	while (--octaves >= 0)
+	{
+		ResultVal += USimplexNoiseLibrary::SimplexNoise3D(MapPoint.X * frequency, MapPoint.Y * frequency, MapPoint.Z * frequency) * amplitude;
+		maxval += amplitude;
+		amplitude *= persistence;
+		frequency *= 2;
+	}
+
+	return ResultVal / maxval;
+}
+
+void AProceduralWholeMap::GetTerrainIsosurface(UPARAM(Ref) class UProceduralMeshComponent*& ProcMeshComp)
+{
+	TArray<FVector> Verts;
+	TArray<int> Indices; // triangles
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<FColor> VertColors;
+	TArray<FProcMeshTangent> Tangents;
+
+	MapIterator = FIntVector::ZeroValue;
+
+	FVector CubeVerts[8];
+	char CubeVals[8];
+	while (MapIterator.X < MapWidth - 1)
+	{
+		while (MapIterator.Y < MapHeight - 1)
+		{
+			while (MapIterator.Z < FullDepth - 1)
+			{
+				FIntVector PointA = MapIterator + FIntVector(0, 0, 0);
+				FIntVector PointB = MapIterator + FIntVector(1, 0, 0);
+				FIntVector PointC = MapIterator + FIntVector(0, 1, 0);
+				FIntVector PointD = MapIterator + FIntVector(1, 1, 0);
+				FIntVector PointE = MapIterator + FIntVector(0, 0, 1);
+				FIntVector PointF = MapIterator + FIntVector(1, 0, 1);
+				FIntVector PointG = MapIterator + FIntVector(0, 1, 1);
+				FIntVector PointH = MapIterator + FIntVector(1, 1, 1);
+
+				CubeVerts[0] = (FVector(PointA) - HalfBounds);
+				CubeVerts[1] = (FVector(PointB) - HalfBounds);
+				CubeVerts[2] = (FVector(PointC) - HalfBounds);
+				CubeVerts[3] = (FVector(PointD) - HalfBounds);
+				CubeVerts[4] = (FVector(PointE) - HalfBounds);
+				CubeVerts[5] = (FVector(PointF) - HalfBounds);
+				CubeVerts[6] = (FVector(PointG) - HalfBounds);
+				CubeVerts[7] = (FVector(PointH) - HalfBounds);
+
+				CubeVals[0] = TerrainMap[PointA.X][PointA.Y][PointA.Z];
+				CubeVals[1] = TerrainMap[PointB.X][PointB.Y][PointB.Z];
+				CubeVals[2] = TerrainMap[PointC.X][PointC.Y][PointC.Z];
+				CubeVals[3] = TerrainMap[PointD.X][PointD.Y][PointD.Z];
+				CubeVals[4] = TerrainMap[PointE.X][PointE.Y][PointE.Z];
+				CubeVals[5] = TerrainMap[PointF.X][PointF.Y][PointF.Z];
+				CubeVals[6] = TerrainMap[PointG.X][PointG.Y][PointG.Z];
+				CubeVals[7] = TerrainMap[PointH.X][PointH.Y][PointH.Z];
+
+
+				TArray<FVector> RetrievedVerts;
+				if (March(CubeVerts, CubeVals, RetrievedVerts))
+				{
+					for (int currTri = 0; currTri < RetrievedVerts.Num(); currTri += 3)
+					{
+						FVector& p2 = RetrievedVerts[currTri];
+						FVector& p1 = RetrievedVerts[currTri + 1];
+						FVector& p0 = RetrievedVerts[currTri + 2];
+
+						Indices.Add(Verts.Add(p2 * TileSize));
+						Indices.Add(Verts.Add(p1 * TileSize));
+						Indices.Add(Verts.Add(p0 * TileSize));
+
+						FVector Edge1 = p1 - p0;
+						FVector Edge2 = p2 - p0;
+
+						FVector TanX = Edge1.GetSafeNormal();
+						FVector TanZ = (Edge1^Edge2).GetSafeNormal();
+
+						for (int i = 0; i < 3; ++i)
+						{
+							Tangents.Add(FProcMeshTangent(TanX, false));
+							Normals.Add(TanZ);
+						}
+					}
+				}
+
+				++MapIterator.Z;
+			}
+			MapIterator.Z = 0;
+			++MapIterator.Y;
+		}
+		MapIterator.Y = 0;
+		++MapIterator.X;
+	}
+
+	ProcMeshComp->CreateMeshSection(0, Verts, Indices, Normals, UVs, VertColors, Tangents, true);
+}
+
+// const T(&l)[N]
+bool AProceduralWholeMap::March(const FVector(&CubeVerts)[8], const char(&CubeVals)[8], TArray<FVector>& OutVerts)
+{
+	unsigned char CubeIndex = CubeVals[0] |
+							 (CubeVals[1] << 1) |
+							 (CubeVals[3] << 2) |
+							 (CubeVals[2] << 3) |
+							 (CubeVals[4] << 4) |
+							 (CubeVals[5] << 5) |
+							 (CubeVals[7] << 6) |
+							 (CubeVals[6] << 7);
+
+	int edgeTable[256] = {
+		0x0  , 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
+		0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
+		0x190, 0x99 , 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c,
+		0x99c, 0x895, 0xb9f, 0xa96, 0xd9a, 0xc93, 0xf99, 0xe90,
+		0x230, 0x339, 0x33 , 0x13a, 0x636, 0x73f, 0x435, 0x53c,
+		0xa3c, 0xb35, 0x83f, 0x936, 0xe3a, 0xf33, 0xc39, 0xd30,
+		0x3a0, 0x2a9, 0x1a3, 0xaa , 0x7a6, 0x6af, 0x5a5, 0x4ac,
+		0xbac, 0xaa5, 0x9af, 0x8a6, 0xfaa, 0xea3, 0xda9, 0xca0,
+		0x460, 0x569, 0x663, 0x76a, 0x66 , 0x16f, 0x265, 0x36c,
+		0xc6c, 0xd65, 0xe6f, 0xf66, 0x86a, 0x963, 0xa69, 0xb60,
+		0x5f0, 0x4f9, 0x7f3, 0x6fa, 0x1f6, 0xff , 0x3f5, 0x2fc,
+		0xdfc, 0xcf5, 0xfff, 0xef6, 0x9fa, 0x8f3, 0xbf9, 0xaf0,
+		0x650, 0x759, 0x453, 0x55a, 0x256, 0x35f, 0x55 , 0x15c,
+		0xe5c, 0xf55, 0xc5f, 0xd56, 0xa5a, 0xb53, 0x859, 0x950,
+		0x7c0, 0x6c9, 0x5c3, 0x4ca, 0x3c6, 0x2cf, 0x1c5, 0xcc ,
+		0xfcc, 0xec5, 0xdcf, 0xcc6, 0xbca, 0xac3, 0x9c9, 0x8c0,
+		0x8c0, 0x9c9, 0xac3, 0xbca, 0xcc6, 0xdcf, 0xec5, 0xfcc,
+		0xcc , 0x1c5, 0x2cf, 0x3c6, 0x4ca, 0x5c3, 0x6c9, 0x7c0,
+		0x950, 0x859, 0xb53, 0xa5a, 0xd56, 0xc5f, 0xf55, 0xe5c,
+		0x15c, 0x55 , 0x35f, 0x256, 0x55a, 0x453, 0x759, 0x650,
+		0xaf0, 0xbf9, 0x8f3, 0x9fa, 0xef6, 0xfff, 0xcf5, 0xdfc,
+		0x2fc, 0x3f5, 0xff , 0x1f6, 0x6fa, 0x7f3, 0x4f9, 0x5f0,
+		0xb60, 0xa69, 0x963, 0x86a, 0xf66, 0xe6f, 0xd65, 0xc6c,
+		0x36c, 0x265, 0x16f, 0x66 , 0x76a, 0x663, 0x569, 0x460,
+		0xca0, 0xda9, 0xea3, 0xfaa, 0x8a6, 0x9af, 0xaa5, 0xbac,
+		0x4ac, 0x5a5, 0x6af, 0x7a6, 0xaa , 0x1a3, 0x2a9, 0x3a0,
+		0xd30, 0xc39, 0xf33, 0xe3a, 0x936, 0x83f, 0xb35, 0xa3c,
+		0x53c, 0x435, 0x73f, 0x636, 0x13a, 0x33 , 0x339, 0x230,
+		0xe90, 0xf99, 0xc93, 0xd9a, 0xa96, 0xb9f, 0x895, 0x99c,
+		0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99 , 0x190,
+		0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
+		0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0 };
+	int triTable[256][16] =
+	{ { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 8, 3, 9, 8, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 3, 1, 2, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 2, 10, 0, 2, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 8, 3, 2, 10, 8, 10, 9, 8, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 11, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 11, 2, 8, 11, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 9, 0, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 11, 2, 1, 9, 11, 9, 8, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 10, 1, 11, 10, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 10, 1, 0, 8, 10, 8, 11, 10, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 9, 0, 3, 11, 9, 11, 10, 9, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 8, 10, 10, 8, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 3, 0, 7, 3, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 1, 9, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 1, 9, 4, 7, 1, 7, 3, 1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 10, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 4, 7, 3, 0, 4, 1, 2, 10, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 2, 10, 9, 0, 2, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 10, 9, 2, 9, 7, 2, 7, 3, 7, 9, 4, -1, -1, -1, -1 },
+	{ 8, 4, 7, 3, 11, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 11, 4, 7, 11, 2, 4, 2, 0, 4, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 0, 1, 8, 4, 7, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 7, 11, 9, 4, 11, 9, 11, 2, 9, 2, 1, -1, -1, -1, -1 },
+	{ 3, 10, 1, 3, 11, 10, 7, 8, 4, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 11, 10, 1, 4, 11, 1, 0, 4, 7, 11, 4, -1, -1, -1, -1 },
+	{ 4, 7, 8, 9, 0, 11, 9, 11, 10, 11, 0, 3, -1, -1, -1, -1 },
+	{ 4, 7, 11, 4, 11, 9, 9, 11, 10, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 5, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 5, 4, 0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 5, 4, 1, 5, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 5, 4, 8, 3, 5, 3, 1, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 10, 9, 5, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 0, 8, 1, 2, 10, 4, 9, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 2, 10, 5, 4, 2, 4, 0, 2, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 10, 5, 3, 2, 5, 3, 5, 4, 3, 4, 8, -1, -1, -1, -1 },
+	{ 9, 5, 4, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 11, 2, 0, 8, 11, 4, 9, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 5, 4, 0, 1, 5, 2, 3, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 1, 5, 2, 5, 8, 2, 8, 11, 4, 8, 5, -1, -1, -1, -1 },
+	{ 10, 3, 11, 10, 1, 3, 9, 5, 4, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 9, 5, 0, 8, 1, 8, 10, 1, 8, 11, 10, -1, -1, -1, -1 },
+	{ 5, 4, 0, 5, 0, 11, 5, 11, 10, 11, 0, 3, -1, -1, -1, -1 },
+	{ 5, 4, 8, 5, 8, 10, 10, 8, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 7, 8, 5, 7, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 3, 0, 9, 5, 3, 5, 7, 3, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 7, 8, 0, 1, 7, 1, 5, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 5, 3, 3, 5, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 7, 8, 9, 5, 7, 10, 1, 2, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 1, 2, 9, 5, 0, 5, 3, 0, 5, 7, 3, -1, -1, -1, -1 },
+	{ 8, 0, 2, 8, 2, 5, 8, 5, 7, 10, 5, 2, -1, -1, -1, -1 },
+	{ 2, 10, 5, 2, 5, 3, 3, 5, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 7, 9, 5, 7, 8, 9, 3, 11, 2, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 5, 7, 9, 7, 2, 9, 2, 0, 2, 7, 11, -1, -1, -1, -1 },
+	{ 2, 3, 11, 0, 1, 8, 1, 7, 8, 1, 5, 7, -1, -1, -1, -1 },
+	{ 11, 2, 1, 11, 1, 7, 7, 1, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 5, 8, 8, 5, 7, 10, 1, 3, 10, 3, 11, -1, -1, -1, -1 },
+	{ 5, 7, 0, 5, 0, 9, 7, 11, 0, 1, 0, 10, 11, 10, 0, -1 },
+	{ 11, 10, 0, 11, 0, 3, 10, 5, 0, 8, 0, 7, 5, 7, 0, -1 },
+	{ 11, 10, 5, 7, 11, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 6, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 3, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 0, 1, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 8, 3, 1, 9, 8, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 6, 5, 2, 6, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 6, 5, 1, 2, 6, 3, 0, 8, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 6, 5, 9, 0, 6, 0, 2, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 9, 8, 5, 8, 2, 5, 2, 6, 3, 2, 8, -1, -1, -1, -1 },
+	{ 2, 3, 11, 10, 6, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 11, 0, 8, 11, 2, 0, 10, 6, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 1, 9, 2, 3, 11, 5, 10, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 10, 6, 1, 9, 2, 9, 11, 2, 9, 8, 11, -1, -1, -1, -1 },
+	{ 6, 3, 11, 6, 5, 3, 5, 1, 3, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 11, 0, 11, 5, 0, 5, 1, 5, 11, 6, -1, -1, -1, -1 },
+	{ 3, 11, 6, 0, 3, 6, 0, 6, 5, 0, 5, 9, -1, -1, -1, -1 },
+	{ 6, 5, 9, 6, 9, 11, 11, 9, 8, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 10, 6, 4, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 3, 0, 4, 7, 3, 6, 5, 10, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 9, 0, 5, 10, 6, 8, 4, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 6, 5, 1, 9, 7, 1, 7, 3, 7, 9, 4, -1, -1, -1, -1 },
+	{ 6, 1, 2, 6, 5, 1, 4, 7, 8, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 5, 5, 2, 6, 3, 0, 4, 3, 4, 7, -1, -1, -1, -1 },
+	{ 8, 4, 7, 9, 0, 5, 0, 6, 5, 0, 2, 6, -1, -1, -1, -1 },
+	{ 7, 3, 9, 7, 9, 4, 3, 2, 9, 5, 9, 6, 2, 6, 9, -1 },
+	{ 3, 11, 2, 7, 8, 4, 10, 6, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 10, 6, 4, 7, 2, 4, 2, 0, 2, 7, 11, -1, -1, -1, -1 },
+	{ 0, 1, 9, 4, 7, 8, 2, 3, 11, 5, 10, 6, -1, -1, -1, -1 },
+	{ 9, 2, 1, 9, 11, 2, 9, 4, 11, 7, 11, 4, 5, 10, 6, -1 },
+	{ 8, 4, 7, 3, 11, 5, 3, 5, 1, 5, 11, 6, -1, -1, -1, -1 },
+	{ 5, 1, 11, 5, 11, 6, 1, 0, 11, 7, 11, 4, 0, 4, 11, -1 },
+	{ 0, 5, 9, 0, 6, 5, 0, 3, 6, 11, 6, 3, 8, 4, 7, -1 },
+	{ 6, 5, 9, 6, 9, 11, 4, 7, 9, 7, 11, 9, -1, -1, -1, -1 },
+	{ 10, 4, 9, 6, 4, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 10, 6, 4, 9, 10, 0, 8, 3, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 0, 1, 10, 6, 0, 6, 4, 0, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 3, 1, 8, 1, 6, 8, 6, 4, 6, 1, 10, -1, -1, -1, -1 },
+	{ 1, 4, 9, 1, 2, 4, 2, 6, 4, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 0, 8, 1, 2, 9, 2, 4, 9, 2, 6, 4, -1, -1, -1, -1 },
+	{ 0, 2, 4, 4, 2, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 3, 2, 8, 2, 4, 4, 2, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 4, 9, 10, 6, 4, 11, 2, 3, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 2, 2, 8, 11, 4, 9, 10, 4, 10, 6, -1, -1, -1, -1 },
+	{ 3, 11, 2, 0, 1, 6, 0, 6, 4, 6, 1, 10, -1, -1, -1, -1 },
+	{ 6, 4, 1, 6, 1, 10, 4, 8, 1, 2, 1, 11, 8, 11, 1, -1 },
+	{ 9, 6, 4, 9, 3, 6, 9, 1, 3, 11, 6, 3, -1, -1, -1, -1 },
+	{ 8, 11, 1, 8, 1, 0, 11, 6, 1, 9, 1, 4, 6, 4, 1, -1 },
+	{ 3, 11, 6, 3, 6, 0, 0, 6, 4, -1, -1, -1, -1, -1, -1, -1 },
+	{ 6, 4, 8, 11, 6, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 7, 10, 6, 7, 8, 10, 8, 9, 10, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 7, 3, 0, 10, 7, 0, 9, 10, 6, 7, 10, -1, -1, -1, -1 },
+	{ 10, 6, 7, 1, 10, 7, 1, 7, 8, 1, 8, 0, -1, -1, -1, -1 },
+	{ 10, 6, 7, 10, 7, 1, 1, 7, 3, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 6, 1, 6, 8, 1, 8, 9, 8, 6, 7, -1, -1, -1, -1 },
+	{ 2, 6, 9, 2, 9, 1, 6, 7, 9, 0, 9, 3, 7, 3, 9, -1 },
+	{ 7, 8, 0, 7, 0, 6, 6, 0, 2, -1, -1, -1, -1, -1, -1, -1 },
+	{ 7, 3, 2, 6, 7, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 3, 11, 10, 6, 8, 10, 8, 9, 8, 6, 7, -1, -1, -1, -1 },
+	{ 2, 0, 7, 2, 7, 11, 0, 9, 7, 6, 7, 10, 9, 10, 7, -1 },
+	{ 1, 8, 0, 1, 7, 8, 1, 10, 7, 6, 7, 10, 2, 3, 11, -1 },
+	{ 11, 2, 1, 11, 1, 7, 10, 6, 1, 6, 7, 1, -1, -1, -1, -1 },
+	{ 8, 9, 6, 8, 6, 7, 9, 1, 6, 11, 6, 3, 1, 3, 6, -1 },
+	{ 0, 9, 1, 11, 6, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 7, 8, 0, 7, 0, 6, 3, 11, 0, 11, 6, 0, -1, -1, -1, -1 },
+	{ 7, 11, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 7, 6, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 0, 8, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 1, 9, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 1, 9, 8, 3, 1, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 1, 2, 6, 11, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 10, 3, 0, 8, 6, 11, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 9, 0, 2, 10, 9, 6, 11, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 6, 11, 7, 2, 10, 3, 10, 8, 3, 10, 9, 8, -1, -1, -1, -1 },
+	{ 7, 2, 3, 6, 2, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 7, 0, 8, 7, 6, 0, 6, 2, 0, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 7, 6, 2, 3, 7, 0, 1, 9, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 6, 2, 1, 8, 6, 1, 9, 8, 8, 7, 6, -1, -1, -1, -1 },
+	{ 10, 7, 6, 10, 1, 7, 1, 3, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 7, 6, 1, 7, 10, 1, 8, 7, 1, 0, 8, -1, -1, -1, -1 },
+	{ 0, 3, 7, 0, 7, 10, 0, 10, 9, 6, 10, 7, -1, -1, -1, -1 },
+	{ 7, 6, 10, 7, 10, 8, 8, 10, 9, -1, -1, -1, -1, -1, -1, -1 },
+	{ 6, 8, 4, 11, 8, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 6, 11, 3, 0, 6, 0, 4, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 6, 11, 8, 4, 6, 9, 0, 1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 4, 6, 9, 6, 3, 9, 3, 1, 11, 3, 6, -1, -1, -1, -1 },
+	{ 6, 8, 4, 6, 11, 8, 2, 10, 1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 10, 3, 0, 11, 0, 6, 11, 0, 4, 6, -1, -1, -1, -1 },
+	{ 4, 11, 8, 4, 6, 11, 0, 2, 9, 2, 10, 9, -1, -1, -1, -1 },
+	{ 10, 9, 3, 10, 3, 2, 9, 4, 3, 11, 3, 6, 4, 6, 3, -1 },
+	{ 8, 2, 3, 8, 4, 2, 4, 6, 2, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 4, 2, 4, 6, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 9, 0, 2, 3, 4, 2, 4, 6, 4, 3, 8, -1, -1, -1, -1 },
+	{ 1, 9, 4, 1, 4, 2, 2, 4, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 1, 3, 8, 6, 1, 8, 4, 6, 6, 10, 1, -1, -1, -1, -1 },
+	{ 10, 1, 0, 10, 0, 6, 6, 0, 4, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 6, 3, 4, 3, 8, 6, 10, 3, 0, 3, 9, 10, 9, 3, -1 },
+	{ 10, 9, 4, 6, 10, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 9, 5, 7, 6, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 3, 4, 9, 5, 11, 7, 6, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 0, 1, 5, 4, 0, 7, 6, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 11, 7, 6, 8, 3, 4, 3, 5, 4, 3, 1, 5, -1, -1, -1, -1 },
+	{ 9, 5, 4, 10, 1, 2, 7, 6, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 6, 11, 7, 1, 2, 10, 0, 8, 3, 4, 9, 5, -1, -1, -1, -1 },
+	{ 7, 6, 11, 5, 4, 10, 4, 2, 10, 4, 0, 2, -1, -1, -1, -1 },
+	{ 3, 4, 8, 3, 5, 4, 3, 2, 5, 10, 5, 2, 11, 7, 6, -1 },
+	{ 7, 2, 3, 7, 6, 2, 5, 4, 9, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 5, 4, 0, 8, 6, 0, 6, 2, 6, 8, 7, -1, -1, -1, -1 },
+	{ 3, 6, 2, 3, 7, 6, 1, 5, 0, 5, 4, 0, -1, -1, -1, -1 },
+	{ 6, 2, 8, 6, 8, 7, 2, 1, 8, 4, 8, 5, 1, 5, 8, -1 },
+	{ 9, 5, 4, 10, 1, 6, 1, 7, 6, 1, 3, 7, -1, -1, -1, -1 },
+	{ 1, 6, 10, 1, 7, 6, 1, 0, 7, 8, 7, 0, 9, 5, 4, -1 },
+	{ 4, 0, 10, 4, 10, 5, 0, 3, 10, 6, 10, 7, 3, 7, 10, -1 },
+	{ 7, 6, 10, 7, 10, 8, 5, 4, 10, 4, 8, 10, -1, -1, -1, -1 },
+	{ 6, 9, 5, 6, 11, 9, 11, 8, 9, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 6, 11, 0, 6, 3, 0, 5, 6, 0, 9, 5, -1, -1, -1, -1 },
+	{ 0, 11, 8, 0, 5, 11, 0, 1, 5, 5, 6, 11, -1, -1, -1, -1 },
+	{ 6, 11, 3, 6, 3, 5, 5, 3, 1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 10, 9, 5, 11, 9, 11, 8, 11, 5, 6, -1, -1, -1, -1 },
+	{ 0, 11, 3, 0, 6, 11, 0, 9, 6, 5, 6, 9, 1, 2, 10, -1 },
+	{ 11, 8, 5, 11, 5, 6, 8, 0, 5, 10, 5, 2, 0, 2, 5, -1 },
+	{ 6, 11, 3, 6, 3, 5, 2, 10, 3, 10, 5, 3, -1, -1, -1, -1 },
+	{ 5, 8, 9, 5, 2, 8, 5, 6, 2, 3, 8, 2, -1, -1, -1, -1 },
+	{ 9, 5, 6, 9, 6, 0, 0, 6, 2, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 5, 8, 1, 8, 0, 5, 6, 8, 3, 8, 2, 6, 2, 8, -1 },
+	{ 1, 5, 6, 2, 1, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 3, 6, 1, 6, 10, 3, 8, 6, 5, 6, 9, 8, 9, 6, -1 },
+	{ 10, 1, 0, 10, 0, 6, 9, 5, 0, 5, 6, 0, -1, -1, -1, -1 },
+	{ 0, 3, 8, 5, 6, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 5, 6, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 11, 5, 10, 7, 5, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 11, 5, 10, 11, 7, 5, 8, 3, 0, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 11, 7, 5, 10, 11, 1, 9, 0, -1, -1, -1, -1, -1, -1, -1 },
+	{ 10, 7, 5, 10, 11, 7, 9, 8, 1, 8, 3, 1, -1, -1, -1, -1 },
+	{ 11, 1, 2, 11, 7, 1, 7, 5, 1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 3, 1, 2, 7, 1, 7, 5, 7, 2, 11, -1, -1, -1, -1 },
+	{ 9, 7, 5, 9, 2, 7, 9, 0, 2, 2, 11, 7, -1, -1, -1, -1 },
+	{ 7, 5, 2, 7, 2, 11, 5, 9, 2, 3, 2, 8, 9, 8, 2, -1 },
+	{ 2, 5, 10, 2, 3, 5, 3, 7, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 2, 0, 8, 5, 2, 8, 7, 5, 10, 2, 5, -1, -1, -1, -1 },
+	{ 9, 0, 1, 5, 10, 3, 5, 3, 7, 3, 10, 2, -1, -1, -1, -1 },
+	{ 9, 8, 2, 9, 2, 1, 8, 7, 2, 10, 2, 5, 7, 5, 2, -1 },
+	{ 1, 3, 5, 3, 7, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 7, 0, 7, 1, 1, 7, 5, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 0, 3, 9, 3, 5, 5, 3, 7, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 8, 7, 5, 9, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 8, 4, 5, 10, 8, 10, 11, 8, -1, -1, -1, -1, -1, -1, -1 },
+	{ 5, 0, 4, 5, 11, 0, 5, 10, 11, 11, 3, 0, -1, -1, -1, -1 },
+	{ 0, 1, 9, 8, 4, 10, 8, 10, 11, 10, 4, 5, -1, -1, -1, -1 },
+	{ 10, 11, 4, 10, 4, 5, 11, 3, 4, 9, 4, 1, 3, 1, 4, -1 },
+	{ 2, 5, 1, 2, 8, 5, 2, 11, 8, 4, 5, 8, -1, -1, -1, -1 },
+	{ 0, 4, 11, 0, 11, 3, 4, 5, 11, 2, 11, 1, 5, 1, 11, -1 },
+	{ 0, 2, 5, 0, 5, 9, 2, 11, 5, 4, 5, 8, 11, 8, 5, -1 },
+	{ 9, 4, 5, 2, 11, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 5, 10, 3, 5, 2, 3, 4, 5, 3, 8, 4, -1, -1, -1, -1 },
+	{ 5, 10, 2, 5, 2, 4, 4, 2, 0, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 10, 2, 3, 5, 10, 3, 8, 5, 4, 5, 8, 0, 1, 9, -1 },
+	{ 5, 10, 2, 5, 2, 4, 1, 9, 2, 9, 4, 2, -1, -1, -1, -1 },
+	{ 8, 4, 5, 8, 5, 3, 3, 5, 1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 4, 5, 1, 0, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 8, 4, 5, 8, 5, 3, 9, 0, 5, 0, 3, 5, -1, -1, -1, -1 },
+	{ 9, 4, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 11, 7, 4, 9, 11, 9, 10, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 8, 3, 4, 9, 7, 9, 11, 7, 9, 10, 11, -1, -1, -1, -1 },
+	{ 1, 10, 11, 1, 11, 4, 1, 4, 0, 7, 4, 11, -1, -1, -1, -1 },
+	{ 3, 1, 4, 3, 4, 8, 1, 10, 4, 7, 4, 11, 10, 11, 4, -1 },
+	{ 4, 11, 7, 9, 11, 4, 9, 2, 11, 9, 1, 2, -1, -1, -1, -1 },
+	{ 9, 7, 4, 9, 11, 7, 9, 1, 11, 2, 11, 1, 0, 8, 3, -1 },
+	{ 11, 7, 4, 11, 4, 2, 2, 4, 0, -1, -1, -1, -1, -1, -1, -1 },
+	{ 11, 7, 4, 11, 4, 2, 8, 3, 4, 3, 2, 4, -1, -1, -1, -1 },
+	{ 2, 9, 10, 2, 7, 9, 2, 3, 7, 7, 4, 9, -1, -1, -1, -1 },
+	{ 9, 10, 7, 9, 7, 4, 10, 2, 7, 8, 7, 0, 2, 0, 7, -1 },
+	{ 3, 7, 10, 3, 10, 2, 7, 4, 10, 1, 10, 0, 4, 0, 10, -1 },
+	{ 1, 10, 2, 8, 7, 4, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 9, 1, 4, 1, 7, 7, 1, 3, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 9, 1, 4, 1, 7, 0, 8, 1, 8, 7, 1, -1, -1, -1, -1 },
+	{ 4, 0, 3, 7, 4, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 4, 8, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 10, 8, 10, 11, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 0, 9, 3, 9, 11, 11, 9, 10, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 1, 10, 0, 10, 8, 8, 10, 11, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 1, 10, 11, 3, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 2, 11, 1, 11, 9, 9, 11, 8, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 0, 9, 3, 9, 11, 1, 2, 9, 2, 11, 9, -1, -1, -1, -1 },
+	{ 0, 2, 11, 8, 0, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 3, 2, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 3, 8, 2, 8, 10, 10, 8, 9, -1, -1, -1, -1, -1, -1, -1 },
+	{ 9, 10, 2, 0, 9, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 2, 3, 8, 2, 8, 10, 0, 1, 8, 1, 10, 8, -1, -1, -1, -1 },
+	{ 1, 10, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 1, 3, 8, 9, 1, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ 0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+	{ -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } };
+
+
+	int RetrievedEdge;
+	if (0 == (RetrievedEdge = edgeTable[CubeIndex]))
+		return false;
+
+	FVector VertList[12];
+
+	if (RetrievedEdge & 1)
+		VertList[0] = FMath::Lerp(CubeVerts[0], CubeVerts[1], 0.5f);
+	if (RetrievedEdge & 2)
+		VertList[1] = FMath::Lerp(CubeVerts[1], CubeVerts[3], 0.5f);
+	if (RetrievedEdge & 4)
+		VertList[2] = FMath::Lerp(CubeVerts[2], CubeVerts[3], 0.5f);
+	if (RetrievedEdge & 8)
+		VertList[3] = FMath::Lerp(CubeVerts[0], CubeVerts[2], 0.5f);
+
+	if (RetrievedEdge & 16)
+		VertList[4] = FMath::Lerp(CubeVerts[4], CubeVerts[5], 0.5f);
+	if (RetrievedEdge & 32)
+		VertList[5] = FMath::Lerp(CubeVerts[5], CubeVerts[7], 0.5f);
+	if (RetrievedEdge & 64)
+		VertList[6] = FMath::Lerp(CubeVerts[6], CubeVerts[7], 0.5f);
+	if (RetrievedEdge & 128)
+		VertList[7] = FMath::Lerp(CubeVerts[4], CubeVerts[6], 0.5f);
+
+	if (RetrievedEdge & 256)
+		VertList[8] = FMath::Lerp(CubeVerts[0], CubeVerts[4], 0.5f);
+	if (RetrievedEdge & 512)
+		VertList[9] = FMath::Lerp(CubeVerts[1], CubeVerts[5], 0.5f);
+	if (RetrievedEdge & 1024)
+		VertList[10] = FMath::Lerp(CubeVerts[3], CubeVerts[7], 0.5f);
+	if (RetrievedEdge & 2048)
+		VertList[11] = FMath::Lerp(CubeVerts[2], CubeVerts[6], 0.5f);
+
+
+	for (int currTriplet = 0; triTable[CubeIndex][currTriplet] != -1; currTriplet += 3)
+	{
+		OutVerts.Add(VertList[triTable[CubeIndex][currTriplet]]);
+		OutVerts.Add(VertList[triTable[CubeIndex][currTriplet + 1]]);
+		OutVerts.Add(VertList[triTable[CubeIndex][currTriplet + 2]]);
+	}
+
+	return OutVerts.Num() > 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+FRandomStream UWorldGenFuncLib::RandStream;
+
+
+void UWorldGenFuncLib::ConnectPoints(UObject* WorldContext, const TArray<FVector>& InPoints, TArray<FSpanEdge>& OutEdges, TArray<FRankedPoint>& OutRankedPoints)
+{
+	//TArray<FSpanTetra> GeneratedTets;
+	//
+	//Delaunay3D(WorldContext, InPoints, GeneratedTets);
+	//
+	//for (auto &currTet : GeneratedTets)
+	//{
+	//	OutEdges.AddUnique(currTet.ABC.AB);
+	//	OutEdges.AddUnique(currTet.ABD.AB);
+	//	OutEdges.AddUnique(currTet.BCD.AB);
+	//	OutEdges.AddUnique(currTet.ACD.AB);
+	//
+	//	OutEdges.AddUnique(currTet.ABC.BC);
+	//	OutEdges.AddUnique(currTet.ABD.BC);
+	//	OutEdges.AddUnique(currTet.BCD.BC);
+	//	OutEdges.AddUnique(currTet.ACD.BC);
+	//
+	//	OutEdges.AddUnique(currTet.ABC.CA);
+	//	OutEdges.AddUnique(currTet.ABD.CA);
+	//	OutEdges.AddUnique(currTet.BCD.CA);
+	//	OutEdges.AddUnique(currTet.ACD.CA);
+	//}
+
+	TArray<FSpanTri> GeneratedTris;
+
+	Delaunay2D(WorldContext, InPoints, GeneratedTris, OutEdges);
+
+	KruskalMST(InPoints, OutEdges);
+
+	OutRankedPoints.AddDefaulted(InPoints.Num());
+
+	for (int currInd = 0; currInd < InPoints.Num(); ++currInd)
+		OutRankedPoints[currInd].Point = InPoints[currInd];
+
+	for (auto& currEdge : OutEdges)
+	{
+		++OutRankedPoints[InPoints.Find(currEdge.A)].Rank;
+		++OutRankedPoints[InPoints.Find(currEdge.B)].Rank;
+	}
+}
+
+void UWorldGenFuncLib::Delaunay3D(UObject* WorldContext, const TArray<FVector>& Points, TArray<FSpanTetra>& Tetras, TArray<FSpanEdge>& Edges)
+{
+	FVector Min = Points[0];
+	FVector Max = Min;
+
+	for (auto &currPt : Points)
+	{
+		if (currPt.X < Min.X) Min.X = currPt.X;
+		else if (currPt.X > Max.X) Max.X = currPt.X;
+
+		if (currPt.Y < Min.Y) Min.Y = currPt.Y;
+		else if (currPt.Y > Max.Y) Max.Y = currPt.Y;
+
+		if (currPt.Z < Min.Z) Min.Z = currPt.Z;
+		else if (currPt.Z > Max.Z) Max.Z = currPt.Z;
+	}
+
+	// lazily making a tet that encapsulates everything
+	// by circumscribing it around the containing sphere
+
+	FVector FitCenter = ((Max - Min) / 2) + Min;
+	float FitRadius = (Max - Min).Size() / 2;
+
+	float TetAng = UKismetMathLibrary::DegAcos(-1.0f / 3.0f);
+	FRotator TetBottomRotator = UKismetMathLibrary::RotatorFromAxisAndAngle(FVector(0, 0, 1), TetAng);
+
+	FVector SuperTetVertA(0, 0, FitRadius * 10);
+	FVector SuperTetVertB = UKismetMathLibrary::RotatorFromAxisAndAngle(FVector(0, 1, 0), TetAng).RotateVector(SuperTetVertA);
+	FVector SuperTetVertC = TetBottomRotator.RotateVector(SuperTetVertB);
+	FVector SuperTetVertD = TetBottomRotator.RotateVector(SuperTetVertC);
+
+	FSpanTetra SuperTet(SuperTetVertA + FitCenter, SuperTetVertB + FitCenter, SuperTetVertC + FitCenter, SuperTetVertD + FitCenter);
+
+	Tetras.Add(SuperTet);
+
+	for (auto &currPoint : Points)
+	{
+		TArray<FSpanTri> PolyHed;
+
+		for (int currInd = Tetras.Num() - 1; currInd >= 0; --currInd)
+		{
+			FSpanTetra& currTet = Tetras[currInd];
+
+			if (currTet.CircumContains(currPoint))
+			{
+				PolyHed.Add(currTet.ABC);
+				PolyHed.Add(currTet.ABD);
+				PolyHed.Add(currTet.BCD);
+				PolyHed.Add(currTet.ACD);
+
+				Tetras.RemoveAt(currInd);
+			}
+		}
+
+		TArray<FSpanTri> BadFaces;
+		for (auto currA = PolyHed.CreateIterator(); currA; ++currA)
+		{
+			for (auto currB = PolyHed.CreateIterator(); currB; ++currB)
+			{
+				if (currA != currB && *currA == *currB)
+				{
+					BadFaces.Add(*currA);
+					BadFaces.Add(*currB);
+				}
+			}
+		}
+
+		for (auto &currBad : BadFaces)
+			PolyHed.Remove(currBad);
+
+		for (auto& currRemaining : PolyHed)
+			Tetras.Add(FSpanTetra(currRemaining.A, currRemaining.B, currRemaining.C, currPoint));
+
+	}
+
+	Tetras.RemoveAll([&SuperTet](FSpanTetra a) { return a.HasVert(SuperTet.A) || a.HasVert(SuperTet.B) || a.HasVert(SuperTet.C) || a.HasVert(SuperTet.D); });
+
+	for (auto &currTet : Tetras)
+	{
+		Edges.AddUnique(currTet.ABC.AB);
+		Edges.AddUnique(currTet.ABD.AB);
+		Edges.AddUnique(currTet.BCD.AB);
+		Edges.AddUnique(currTet.ACD.AB);
+	
+		Edges.AddUnique(currTet.ABC.BC);
+		Edges.AddUnique(currTet.ABD.BC);
+		Edges.AddUnique(currTet.BCD.BC);
+		Edges.AddUnique(currTet.ACD.BC);
+	
+		Edges.AddUnique(currTet.ABC.CA);
+		Edges.AddUnique(currTet.ABD.CA);
+		Edges.AddUnique(currTet.BCD.CA);
+		Edges.AddUnique(currTet.ACD.CA);
+	}
+}
+
+void UWorldGenFuncLib::Delaunay2D(UObject* WorldContext, const TArray<FVector>& Points, TArray<FSpanTri>& Tris, TArray<FSpanEdge>& Edges)
+{
+	FVector Min = Points[0];
+	FVector Max = Min;
+
+	for (auto &currPt : Points)
+	{
+		if (currPt.X < Min.X) Min.X = currPt.X;
+		else if (currPt.X > Max.X) Max.X = currPt.X;
+
+		if (currPt.Y < Min.Y) Min.Y = currPt.Y;
+		else if (currPt.Y > Max.Y) Max.Y = currPt.Y;
+	}
+
+	// lazily making a tet that encapsulates everything
+	// by circumscribing it around the containing sphere
+
+	FVector FitCenter = ((Max - Min) / 2) + Min;
+	float FitRadius = (Max - Min).Size() / 2;
+
+	float TriAng = UKismetMathLibrary::DegAcos(-1.0f / 3.0f);
+	FRotator TriRotator = UKismetMathLibrary::RotatorFromAxisAndAngle(FVector(0, 0, 1), TriAng);
+
+	FVector SuperTriVertA(FitRadius * 10, 0, 0);
+	FVector SuperTriVertB = TriRotator.RotateVector(SuperTriVertA);
+	FVector SuperTriVertC = TriRotator.RotateVector(SuperTriVertB);
+
+	FSpanTri SuperTri(SuperTriVertA, SuperTriVertB, SuperTriVertC);
+
+	Tris.Add(SuperTri);
+
+	for (auto &currPoint : Points)
+	{
+		TArray<FSpanEdge> Poly;
+
+		for (int currInd = Tris.Num() - 1; currInd >= 0; --currInd)
+		{
+			FSpanTri& currTri = Tris[currInd];
+
+			if (currTri.CircumContains(currPoint))
+			{
+				Poly.Add(currTri.AB);
+				Poly.Add(currTri.BC);
+				Poly.Add(currTri.CA);
+
+				Tris.RemoveAt(currInd);
+			}
+		}
+
+		TArray<FSpanEdge> BadEdges;
+		for (auto currA = Poly.CreateIterator(); currA; ++currA)
+		{
+			for (auto currB = Poly.CreateIterator(); currB; ++currB)
+			{
+				if (currA != currB && *currA == *currB)
+				{
+					BadEdges.Add(*currA);
+					BadEdges.Add(*currB);
+				}
+			}
+		}
+
+		for (auto &currBad : BadEdges)
+			Poly.Remove(currBad);
+
+		for (auto& currRemaining : Poly)
+			Tris.Add(FSpanTri(currRemaining.A, currRemaining.B, currPoint));
+
+	}
+
+	Tris.RemoveAll([&SuperTri](FSpanTri a) { return a.HasVert(SuperTri.A) || a.HasVert(SuperTri.B) || a.HasVert(SuperTri.C); });
+
+	for (auto& currTri : Tris)
+	{
+		Edges.Add(currTri.AB);
+		Edges.Add(currTri.BC);
+		Edges.Add(currTri.CA);
+	}
+}
+
+void UWorldGenFuncLib::KruskalMST(const TArray<FVector>& Points, UPARAM(Ref) TArray<FSpanEdge>& InOutEdges)
+{
+	// broken disjointed set implementation, woohoooooo
+
+	struct DisjSet
+	{
+		TArray<int> Parents;
+		TArray<int> Ranks;
+
+		DisjSet(int Num)
+		{
+			Parents.AddDefaulted(Num);
+			Ranks.AddZeroed(Num);
+
+			for (int i = 0; i < Num; ++i)
+				Parents[i] = i;
+		}
+
+		int FindParent(int Ind)
+		{
+			if (Parents[Ind] != Ind)
+				Parents[Ind] = FindParent(Parents[Ind]);
+			return Parents[Ind];
+		}
+
+		void Unite(int IndA, int IndB)
+		{
+			int ParentA = FindParent(IndA);
+			int ParentB = FindParent(IndB);
+
+			// assuming ParentA != ParentB
+
+			if (Ranks[ParentA] < Ranks[ParentB])
+				Parents[ParentA] = ParentB;
+			else if(Ranks[ParentB] < Ranks[ParentA])
+				Parents[ParentB] = ParentA;
+
+			if (Ranks[ParentA] == Ranks[ParentB])
+				++Ranks[ParentB];
+		}
+	};
+
+	DisjSet DS(Points.Num());
+
+
+	InOutEdges.Sort([](const FSpanEdge& a, const FSpanEdge& b) { return ((a.B - a.A)*FVector(1,1,100)).Size() > ((b.B - b.A)*FVector(1,1,100)).Size(); });
+
+	for (int currInd = InOutEdges.Num() - 1; currInd >= 0; --currInd)
+	{
+		FSpanEdge& currEdge = InOutEdges[currInd];
+
+		const int ParentA = DS.FindParent(Points.Find(currEdge.A));
+		const int ParentB = DS.FindParent(Points.Find(currEdge.B));
+
+		if (ParentA == ParentB) // if they're in the same tree
+			InOutEdges.RemoveAt(currInd);
+		else
+			DS.Unite(ParentA, ParentB);
+	}
+}
+
+void UWorldGenFuncLib::Delaunay2DToVoronoi2D(UObject* WorldContext, const TArray<FSpanTri>& InDelaunay, TArray<FSpanPoly>& OutPolygons, TArray<FSpanEdge>& OutEdges, float MaxDelaunayCircumradius)
+{
+	TArray<FVector> DelaunayCircumcenters;
+	TArray<float> DelaunayCircumradii;
+
+	FVector CurrCircumcenter;
+	float CurrCircumradius;
+	for (auto& currDelTri : InDelaunay)
+	{
+		currDelTri.GetCircumcircle(CurrCircumcenter, CurrCircumradius);
+		DelaunayCircumcenters.Add(CurrCircumcenter);
+		DelaunayCircumradii.Add(CurrCircumradius);
+		OutPolygons.Add(FSpanPoly(CurrCircumcenter));
+	}
+
+	for (int AInd = 0; AInd < InDelaunay.Num(); ++AInd)
+	{
+		const FSpanTri& currA = InDelaunay[AInd];
+		for (int BInd = AInd + 1; BInd < InDelaunay.Num(); ++BInd)
+		{
+			const FSpanTri& currB = InDelaunay[BInd];
+
+			if (currB.HasEdge(currA.AB) || currB.HasEdge(currA.BC) || currB.HasEdge(currA.CA))
+			{
+				if (MaxDelaunayCircumradius <= 0 || (DelaunayCircumradii[AInd] < MaxDelaunayCircumradius && DelaunayCircumradii[BInd] < MaxDelaunayCircumradius))
+				{
+					FSpanEdge NewEdge = FSpanEdge(DelaunayCircumcenters[AInd], DelaunayCircumcenters[BInd]);
+					OutEdges.AddUnique(NewEdge);
+					OutPolygons[AInd].Sides.AddUnique(NewEdge);
+					OutPolygons[BInd].Sides.AddUnique(NewEdge);
+				}
+			}
+		}
+	}
+}
+
+
+void UWorldMap::AddUpdateCell(UWorldUpdateCell* NewUpdateCell)
+{
+	UpdateCells.AddUnique(MakeShareable(NewUpdateCell));
+}
+
+void UWorldMap::AddCell(UWorldCell* NewCell)
+{
+	TArray<UWorldUpdateCell*> UpdateCellsToAdd;
+	NewCell->GetUpdateCells(UpdateCellsToAdd);
+
+	for (auto *currUpdateCell : UpdateCellsToAdd)
+		AddUpdateCell(currUpdateCell);
+
+	WorldCells.Add(MakeShareable(NewCell));
+}
+
+void UWorldMap::AddRegion(UWorldRegion* NewRegion)
+{
+	TArray<UWorldCell*> WorldCellsToAdd;
+	NewRegion->GetCells(WorldCellsToAdd);
+
+	for (auto *currCell : WorldCellsToAdd)
+		AddCell(currCell);
+
+	WorldRegions.Add(MakeShareable(NewRegion));
+}
+
+void UWorldMap::AddContinent(UWorldContinent* NewContinent)
+{
+	TArray<UWorldRegion*> WorldRegionsToAdd;
+	NewContinent->GetRegions(WorldRegionsToAdd);
+
+	for (auto *currRegion : WorldRegionsToAdd)
+		AddRegion(currRegion);
+
+	WorldContinents.Add(MakeShareable(NewContinent));
+}
+
+
+void UWorldGenerator::Generate(UWorldMap*& OutGenerated, int InitialRandSeed)
+{
+	UWorldGenFuncLib::InitializeWorldRandom(InitialRandSeed);
+
+	/*
+		THOUGHT: Switch over to a rolling amount based on
+		the size of islands that have been created before
+		in order to make island sizes random as well?
+	*/
+	// Half the size of the currently-spawned island.
+	FVector CurrentIslandExtents;// = FVector(MapDimensions/Islands.Num());
+
+	// The extents for how far an island can be spawned
+	FVector ContinentSpawnBoxExtents;// = FVector(MapDimensions-(2*IslandExtents));
+
+	for (int currIslInd = 0; currIslInd < Islands.Num(); ++currIslInd)
+	{
+		auto &currIsl = Islands[currIslInd];
+
+		float ZLayer;
+
+		if (0 == currIslInd)
+		{
+			ZLayer = FMath::RoundToFloat(Islands.Num() / 2);
+		}
+		else
+		{
+			int ChosenLayer = UWorldGenFuncLib::GetWorldRandom().RandRange(1, Islands.Num() - 1);
+			ZLayer = FMath::GetMappedRangeValueClamped({ 0.0f, (float)Islands.Num() }, { 0.0f, 1.0f }, (float)ChosenLayer);
+		}
+
+
+		// Determine the island's current size
+
+		// Determine the box where it can randomly be placed without exiting the map's bounds
+
+
+		// Create this island's voronoi diagram
+
+
+		// Cut and reshape polygons whose points lie outside the boundaries of the spawning box
+
+
+		// Pass to the islandfunction to determine where the ground is
+
+
+		// Do all the passes on this island
+		//for (auto &currPass : Passes)
+		//	currPass.GetDefaultObject()->Apply(/*TODO STUFF*/);
+
+		// Determine regions (name regions?)
+
+
+		// Determine continent (name continent?)
+
+
+		// Add continent to world map.
+
+
+	}
+
+}
+
+void UWorldRasterizer::RasterizeWorld(const FWorldRasterizationSettings& RasterSettings, UWorldMap* WorldMap)
 {
 	// TODO : IMPL
 }
