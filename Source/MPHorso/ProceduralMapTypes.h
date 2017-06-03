@@ -2036,98 +2036,108 @@ private:
 
 };
 
-/*
-	The world generator class!
-
-	This class is in charge of creating
-	the cell-based representation of the
-	map, to later be fed into the world
-	rasterizer.
-*/
-UCLASS(Blueprintable)
-class MPHORSO_API UWorldGenerator : public UObject
+USTRUCT(BlueprintType)
+struct FWorldGenerationSettings
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY();
 
-public:
-
-	// The world map.
-	TSharedPtr<UWorldMap> WorldMap;
-
-	/*
-		The X, Y, and Z bounds of the map.
-
-		This is used to determine the bounds
-		within which the islands are slated
-		to generate. The space allowance for
-		an island is given as a bounding
-		box of 1/N * (X, Y, Z), where N
-		is the number of islands to be created.
-	*/
-	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Mapper", meta = (ClampMin = "1.0"))
+	// The dimensionality of the map, for use during generation.
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
 		FVector MapDimensions;
 
 	/*
-		An array of the shape an island will
-		be created with.
-
-		Also, the length of this array represents
-		the number of islands which will be created.
+		An array which represents both the number of
+		islands to spawn and the functions with which
+		to define each island's shape respectively,
+		for use during generation.
 
 		If you wish multiple islands to be made with
 		the same island function, simply create multiple
 		of the same type of entry in the array.
 	*/
-	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Mapper", meta = (ClampMin = "1.0"))
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
 		TArray<TSubclassOf<UWorldShapeFunction>> Islands;
+
+	/*
+		The number of sampling points used to construct
+		the delaunay and voronoi diagrams for the current
+		island.
+
+		This *may* line up with the number of islands, but
+		if it's less than the number of islands it'll just
+		cycle through. If you want every island to be sampled
+		with the same number of points then just leave one
+		entry in this array.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+		TArray<int> NumSamplingPoints;
+
 
 	/*
 		The generation passes, in order of
 		occurrence.
+
+		These are done for every island in
+		sequence, after their respective
+		shaping functions, and serve the
+		purpose of assigning attributes like
+		elevation, moisture, etc. for later
+		use during biome placement and
+		regioning.
 	*/
-	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Mapper")
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
 		TArray<TSubclassOf<UWorldGenPass>> Passes;
 
 
-	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Generator")
-		UWorldMap* GetWorldMap() { return WorldMap.Get(); }
-	
-	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Generator")
-		void Generate(UWorldMap*& OutGenerated, int InitialRandSeed = 0);
-
-private:
+	// The "resolution" of the map in X*Y*Z Tiles, for use during rasterization.
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+		FVector RasterDimensions;
 
 };
 
-
-USTRUCT(BlueprintType)
-struct FWorldRasterizationSettings
-{
-	GENERATED_USTRUCT_BODY();
-
-	// The size of a tile, in X*Y*Z Unreal Units.
-	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Rasterization Settings")
-		FVector TileDimensions;
-
-	// The size of the tiled world created, in X*Y*Z Chunks
-	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Rasterization Settings")
-		FVector WorldDimensions;
-};
-
-/*
-	This class translates the world cell data
-	into tile data that can be used granularly
-	in-game.
-*/
 UCLASS(Blueprintable)
-class MPHORSO_API UWorldRasterizer : public UObject
+class MPHORSO_API AWorldGenerator : public AActor
 {
 	GENERATED_BODY()
 
 public:
+	// Sets default values for this actor's properties
+	AWorldGenerator(const FObjectInitializer& _init);
 
-	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Rasterizer")
-		void RasterizeWorld(const FWorldRasterizationSettings& RasterSettings, UWorldMap* WorldMap);
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+
+public:
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
+
+	TSharedPtr<UWorldMap> WorldMap;
+
+	/*
+		This map contains all of the different layouts of worlds which can
+		have been saved as generation types.
+
+		By default this is most likely just going to be small/medium/large
+		but implementing it this way allows me to append user-created settings
+		to the map whenever I feel like getting around to something like that.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural World Generation|World Generator")
+		TMap<FName, FWorldGenerationSettings> WorldTypes;
+
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Generator")
+		UWorldMap* GetWorldMap() { return WorldMap.Get(); }
+
+	// Function which both generates and rasterizes the world.
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Generator")
+		void Build(FName WorldTypeToBuild, int InitialRandSeed = 0);
+
+	// Function which generates the world and populates the WorldMap member.
+	void Generate(const FWorldGenerationSettings& WorldSettings, int InitialRandSeed);
+
+	// Function which rasterizes the pre-generated world for actual gameplay use.
+	void Rasterize(const FWorldGenerationSettings& WorldSettings);
 
 private:
 

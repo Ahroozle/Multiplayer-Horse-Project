@@ -1881,8 +1881,47 @@ void UWorldMap::AddContinent(UWorldContinent* NewContinent)
 	WorldContinents.Add(MakeShareable(NewContinent));
 }
 
+AWorldGenerator::AWorldGenerator(const FObjectInitializer& _init) : Super(_init)
+{
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	//PrimaryActorTick.bCanEverTick = true;
 
-void UWorldGenerator::Generate(UWorldMap*& OutGenerated, int InitialRandSeed)
+	bReplicates = true;
+	//bReplicateMovement = true;
+
+	RootComponent = _init.CreateDefaultSubobject<USceneComponent>(this, TEXT("RootComponent"));
+}
+
+void AWorldGenerator::BeginPlay()
+{
+
+}
+
+void AWorldGenerator::Tick(float DeltaTime)
+{
+
+}
+
+void AWorldGenerator::Build(FName WorldTypeToBuild, int InitialRandSeed)
+{
+	/*
+		currently single-threaded implementation, will switch to worker thread
+		impl once the system actually works.
+	*/
+
+	FWorldGenerationSettings* ChosenWorldType = WorldTypes.Find(WorldTypeToBuild);
+
+	if (nullptr != ChosenWorldType)
+	{
+		Generate(*ChosenWorldType, InitialRandSeed);
+
+		Rasterize(*ChosenWorldType);
+	}
+	else
+		UStaticFuncLib::Print("AWorldGenerator::Build: WorldType \'" + WorldTypeToBuild.ToString() + "\' Wasn't in the WorldTypes map! Building was not completed successfully.", true);
+}
+
+void AWorldGenerator::Generate(const FWorldGenerationSettings& WorldSettings, int InitialRandSeed)
 {
 	UWorldGenFuncLib::InitializeWorldRandom(InitialRandSeed);
 
@@ -1897,33 +1936,70 @@ void UWorldGenerator::Generate(UWorldMap*& OutGenerated, int InitialRandSeed)
 	// The extents for how far an island can be spawned
 	FVector ContinentSpawnBoxExtents;// = FVector(MapDimensions-(2*IslandExtents));
 
-	for (int currIslInd = 0; currIslInd < Islands.Num(); ++currIslInd)
+	for (int currIslInd = 0; currIslInd < WorldSettings.Islands.Num(); ++currIslInd)
 	{
-		auto &currIsl = Islands[currIslInd];
+		auto &currIsl = WorldSettings.Islands[currIslInd];
 
 		float ZLayer;
 
 		if (0 == currIslInd)
 		{
-			ZLayer = FMath::RoundToFloat(Islands.Num() / 2);
+			ZLayer = FMath::RoundToFloat(WorldSettings.Islands.Num() / 2);
 		}
 		else
 		{
-			int ChosenLayer = UWorldGenFuncLib::GetWorldRandom().RandRange(1, Islands.Num() - 1);
-			ZLayer = FMath::GetMappedRangeValueClamped({ 0.0f, (float)Islands.Num() }, { 0.0f, 1.0f }, (float)ChosenLayer);
+			int ChosenLayer = UWorldGenFuncLib::GetWorldRandom().RandRange(1, WorldSettings.Islands.Num() - 1);
+			ZLayer = FMath::GetMappedRangeValueClamped({ 0.0f, (float)WorldSettings.Islands.Num() }, { 0.0f, 1.0f }, (float)ChosenLayer);
 		}
 
 
 		// Determine the island's current size
 
-		// Determine the box where it can randomly be placed without exiting the map's bounds
 
+		// Construct the bounding box for the current island with this information
+		FBox Boundingbox;
+
+		// Determine the box where it can randomly be placed without exiting the map's bounds
+		TArray<FVector> Points;
+
+		const int& CurrNumSamplingPoints = WorldSettings.NumSamplingPoints[currIslInd%WorldSettings.NumSamplingPoints.Num()];
+
+		//for (int currPoint = 0; currPoint < CurrNumSamplingPoints; ++currPoint)
+		//	Points.Add(/* TODO RANDOM INSIDE BOX */);
 
 		// Create this island's voronoi diagram
+		TArray<FSpanTri> Tris;
+		TArray<FSpanEdge> Edges;
+		UWorldGenFuncLib::Delaunay2D(this, Points, Tris, Edges);
 
+		TArray<FSpanPoly> VoronoiPolys;
+		Edges.Empty();
+		UWorldGenFuncLib::Delaunay2DToVoronoi2D(this, Tris, VoronoiPolys, Edges);
 
 		// Cut and reshape polygons whose points lie outside the boundaries of the spawning box
+		for (auto &currPoly : VoronoiPolys)
+		{
 
+			FWorldGenVoronoiCellData ProcessedPoly;
+			for (auto &curr : currPoly.Sides)
+			{
+				FSpanEdge ProcessedEdge;
+				if (curr.A != Boundingbox.GetClosestPointTo(curr.A) ||
+					curr.B != Boundingbox.GetClosestPointTo(curr.B))
+				{
+					// TODO : IMPL CLIPPING AND REFITTING INTO BOUNDS
+				}
+				else
+				{
+					ProcessedPoly.ShapeData_Edges.AddUnique(curr);
+
+					ProcessedPoly.ShapeData_Verts.AddUnique(curr.A);
+					ProcessedPoly.ShapeData_Verts.AddUnique(curr.B);
+				}
+			}
+
+			ProcessedPoly.ShapeData_Center = currPoly.Site;
+		}
 
 		// Pass to the islandfunction to determine where the ground is
 
@@ -1942,10 +2018,9 @@ void UWorldGenerator::Generate(UWorldMap*& OutGenerated, int InitialRandSeed)
 
 
 	}
-
 }
 
-void UWorldRasterizer::RasterizeWorld(const FWorldRasterizationSettings& RasterSettings, UWorldMap* WorldMap)
+void AWorldGenerator::Rasterize(const FWorldGenerationSettings& WorldSettings)
 {
 	// TODO : IMPL
 }
