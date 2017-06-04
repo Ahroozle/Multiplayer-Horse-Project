@@ -1820,6 +1820,162 @@ private:
 };
 
 
+#pragma region Biome Classes
+
+/*
+	Generic struct for environmental
+	data, manipulated during passes
+	world generation passes.
+*/
+USTRUCT(BlueprintType)
+struct FWorldGenEnvironmentData
+{
+	GENERATED_USTRUCT_BODY();
+
+	/*
+		Environmental data values by name.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TMap<FName, float> EnvironmentData;
+};
+
+/*
+	rather naive N-Dimensional Box implementation,
+	used for determining 
+*/
+USTRUCT(BlueprintType)
+struct FBiomeBox
+{
+	GENERATED_USTRUCT_BODY();
+
+	/*
+		Name of the biome this box represents.
+
+		If this is none then it is expected that
+		this box actually leads to a subtable.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName BiomeName;
+
+	/*
+		Name of the subtable that this
+		box points to, if any.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName TableName;
+
+	/*
+		N-dimensional ranges which this
+		box occupies.
+
+		Should be the same size as the
+		TableAxes array in its respective
+		Biome Table. If there are less
+		axes then they are just assumed to
+		be zeros, while any axes above the
+		amount required are ignored.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<FVector2D> AxisRanges;
+
+
+	bool Contains(const TArray<float>& InAxisData) const
+	{
+		for (int currInd = 0; currInd < InAxisData.Num(); ++currInd)
+		{
+			const float& currAxisData = InAxisData[currInd];
+			const FVector2D& InAxisRange = AxisRanges[currInd];
+
+			if (!FMath::IsWithinInclusive(currAxisData, InAxisRange.X, InAxisRange.Y))
+				return false;
+		}
+		return true;
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FBiomeTable
+{
+	GENERATED_USTRUCT_BODY();
+
+	// The axis attributes used by this table.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<FName> TableAxes;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<FBiomeBox> TableBoxes;
+
+	bool GetOverlappingBox(const TMap<FName, float>& InData, FBiomeBox& OutFound) const
+	{
+		TArray<float> RelevantAxisData;
+		for (auto &currAxis : TableAxes)
+		{
+			const float* currGrabbed = InData.Find(currAxis);
+
+			if (nullptr != currGrabbed)
+				RelevantAxisData.Add(*currGrabbed);
+			else
+				RelevantAxisData.Add(0); // any axis data that doesn't exist is just assumed to be its default.
+		}
+
+		TArray<FBiomeBox> WorkingBoxes = TableBoxes.FilterByPredicate(
+																		[&RelevantAxisData](const FBiomeBox& a)
+																		{
+																			return a.Contains(RelevantAxisData);
+																		}
+																	 );
+
+		if (WorkingBoxes.Num() < 1)
+			return false;
+
+		// if there's more than one box that works it just chooses randomly.
+		OutFound = WorkingBoxes[UWorldGenFuncLib::GetWorldRandom().RandRange(0, WorkingBoxes.Num() - 1)];
+
+		return true;
+	}
+};
+
+/*
+	Biome map class!
+
+	This class attempts to capture a multiple-layered
+	'table' of values based on attributes expected
+	to be on a cell, and uses them to determine a
+	cell's biome from its data.
+*/
+UCLASS(Blueprintable)
+class MPHORSO_API UBiomeMap : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// The biome table always used as the root by GetBiome()
+
+	FBiomeTable StartingTable;
+
+	// all of the tables stemming off from the starting table and further down.
+	TMap<FName, FBiomeTable> BiomeSubtables;
+
+	/*
+		Get the biome associated with the current
+		set of environmental data values.
+
+		Returns NONE when no biome was found.
+	*/
+	FName GetBiome(const FWorldGenEnvironmentData& InEnvironmentalData, TMap<FName, FVector2D>& OutBiomeRanges);
+
+private:
+	
+	// Recursive function used inside GetBiome().
+	FName GetBiomeFromTable(const FBiomeTable& Table, const TMap<FName, float>& InEnvironmentalData, TMap<FName, FVector2D>& OutBiomeRanges);
+
+};
+
+#pragma endregion
+
+
 /*
 	Structure containing voronoi cell data
 	for world generation classes.
@@ -1830,16 +1986,45 @@ struct FWorldGenVoronoiCellData
 	GENERATED_USTRUCT_BODY();
 
 	// The vertices of the region shape
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Voronoi Cell Data")
+	UPROPERTY(BlueprintReadWrite)
 		TArray<FVector> ShapeData_Verts;
 
 	// The edges of the region shape
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Voronoi Cell Data")
+	UPROPERTY(BlueprintReadWrite)
 		TArray<FSpanEdge> ShapeData_Edges;
 
 	// The voronoi centerpoint of the region shape.
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Voronoi Cell Data")
+	UPROPERTY(BlueprintReadWrite)
 		FVector ShapeData_Center;
+
+	// The environmental data for this cell
+	UPROPERTY(BlueprintReadWrite)
+		FWorldGenEnvironmentData EnvironmentData;
+
+	/*
+		The biome of this cell, for use looking up relevant data in dictionaries.
+
+		NOTE: Cells which represent holes should be tagged as 'HOLE' on their biome.
+			  This is what the generation function is looking for when determining
+			  what is a hole and what is not a hole.
+	*/
+	UPROPERTY(BlueprintReadWrite)
+		FName Biome;
+
+	/*
+		The environmental data value
+		ranges within which this cell
+		will still remain the current
+		biome.
+
+		Every time the cell is updated,
+		its new environmental data values
+		are compared to the values within
+		this map, and if it's outside any
+		of them now its biome is recalculated.
+	*/
+	UPROPERTY(BlueprintReadWrite)
+		TMap<FName, FVector2D> BiomeRanges;
 };
 
 /*
@@ -1987,8 +2172,8 @@ private:
 
 /*
 	This class represents a function used to determine
-	which parts of a world/island are land and which
-	parts are water/holes.
+	which parts of a world/island are land, which parts
+	are water, and which parts are holes.
 */
 UCLASS(Blueprintable)
 class MPHORSO_API UWorldShapeFunction : public UObject
@@ -2036,42 +2221,87 @@ private:
 
 };
 
+/*
+	struct for abstracting island-specific generation
+	settings into a convenient format.
+*/
+USTRUCT(BlueprintType)
+struct FWorldGenIslandSettings
+{
+	GENERATED_USTRUCT_BODY();
+
+	/*
+		The dimensions of the box which this
+		island is allowed to be constructed
+		within, in 0->1 bounds in reference
+		to the map's dimensions.
+
+		the Z bounds of the box may be clipped
+		short depending on how close the box is
+		to the minimum or maximum world Z.
+
+		Defines and is guaranteed to represent an AABB.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings")
+		FVector BoxDimensions;
+
+	/*
+		The shaping function for this island.
+
+		This determines which parts of the island
+		are considered ground and which parts are
+		to be evaluated by later passes to be
+		considered either holes or bodies of
+		water.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings")
+		TSubclassOf<UWorldShapeFunction> ShapeFunction;
+
+	/*
+		The number of sampling points used to
+		create this island's voronoi diagram.
+
+		the more points, the more fine the
+		shape of this island will become.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings")
+		int NumSamplingPoints = 1000;
+};
+
+/*
+	World generation settings struct, abstracted
+	from the main class itself to afford the ability
+	to slot settings in and out for convenience and
+	expansion of capability.
+*/
 USTRUCT(BlueprintType)
 struct FWorldGenerationSettings
 {
 	GENERATED_USTRUCT_BODY();
 
 	// The dimensionality of the map, for use during generation.
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
 		FVector MapDimensions;
 
 	/*
 		An array which represents both the number of
-		islands to spawn and the functions with which
-		to define each island's shape respectively,
-		for use during generation.
-
-		If you wish multiple islands to be made with
-		the same island function, simply create multiple
-		of the same type of entry in the array.
+		islands to spawn and the parameters by which
+		to create each island.
 	*/
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
-		TArray<TSubclassOf<UWorldShapeFunction>> Islands;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+		TArray<FWorldGenIslandSettings> Islands;
 
 	/*
-		The number of sampling points used to construct
-		the delaunay and voronoi diagrams for the current
-		island.
+		The index of the island the player is intended to start on.
 
-		This *may* line up with the number of islands, but
-		if it's less than the number of islands it'll just
-		cycle through. If you want every island to be sampled
-		with the same number of points then just leave one
-		entry in this array.
+		if this is <0 or >Islands.Num() then the player will start on a random island.
+
+		As for the exact position on the island, the algorithm attempts to place the
+		player in the most hospitable region on the island in terms of its attributes
+		and/or biome. This will usually result in being placed in grasslands
 	*/
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
-		TArray<int> NumSamplingPoints;
-
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+		int StartingIsland = 0;
 
 	/*
 		The generation passes, in order of
@@ -2085,12 +2315,15 @@ struct FWorldGenerationSettings
 		use during biome placement and
 		regioning.
 	*/
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
 		TArray<TSubclassOf<UWorldGenPass>> Passes;
 
+	// The biome map used for this world type. Translates environmental data into a concrete biome.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+		TSubclassOf<UBiomeMap> BiomeMap;
 
 	// The "resolution" of the map in X*Y*Z Tiles, for use during rasterization.
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
 		FVector RasterDimensions;
 
 };
@@ -2373,4 +2606,24 @@ private:
 			do this, since it's a rather tough
 			cookie to crack and I'm not sure what
 			the best course of action would be yet.
+
+
+		other things:
+			Allow the camera to be tilted up/down
+			in addition to the current L/R stuff
+			so that a wider range of vision can
+			be achieved? Might need to rip off
+			how Journey handles looking upward
+			(i.e. zoom the camera inward along
+			a curve as to avoid colliding with
+			the ground as well as avoiding the
+			jarring effect of hitting the ground
+			and *suddenly* being zoomed in).
+			Might have to think about this for
+			a bit since zooming is also a thing
+			that can happen and stuff. Maybe just
+			have the camera zoomed out a bit
+			further as a default as well since it
+			might be a bit close-to-character for
+			a default zoom as of right now?
 */
