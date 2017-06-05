@@ -1836,7 +1836,7 @@ struct FWorldGenEnvironmentData
 		Environmental data values by name.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		TMap<FName, float> EnvironmentData;
+		TMap<FName, float> InternalMap;
 };
 
 /*
@@ -1999,7 +1999,7 @@ struct FWorldGenVoronoiCellData
 
 	// The environmental data for this cell
 	UPROPERTY(BlueprintReadWrite)
-		FWorldGenEnvironmentData EnvironmentData;
+		FWorldGenEnvironmentData EnvData;
 
 	/*
 		The biome of this cell, for use looking up relevant data in dictionaries.
@@ -2025,6 +2025,57 @@ struct FWorldGenVoronoiCellData
 	*/
 	UPROPERTY(BlueprintReadWrite)
 		TMap<FName, FVector2D> BiomeRanges;
+
+	bool BoundsFound = false;
+	FVector MinBounds;
+	FVector MaxBounds;
+	void GetBounds(FVector& OutMin, FVector& OutMax)
+	{
+		if (!BoundsFound)
+		{
+			MinBounds = FVector(100000000, 100000000, 100000000);
+			MaxBounds = FVector(-100000000, -100000000, -100000000);
+			for (auto &curr : ShapeData_Verts)
+			{
+				if (curr.X < MinBounds.X)
+					MinBounds.X = curr.X;
+				if (curr.Y < MinBounds.Y)
+					MinBounds.Y = curr.Y;
+
+				if (curr.X > MaxBounds.X)
+					MaxBounds.X = curr.X;
+				if (curr.Y > MaxBounds.Y)
+					MaxBounds.Y = curr.Y;
+			}
+			BoundsFound = true;
+		}
+
+		OutMin = MinBounds;
+		OutMax = MaxBounds;
+	}
+
+	bool FoundAvgPt = false;
+	FVector AvgPt;
+	bool ContainsPoint(FVector Pt)
+	{
+		if (!FoundAvgPt)
+		{
+			AvgPt = FVector::ZeroVector;
+			for (auto &curr : ShapeData_Verts)
+				AvgPt += curr;
+			AvgPt /= ShapeData_Verts.Num();
+		}
+
+		float PtToAvgDist = (AvgPt - Pt).Size2D();
+
+		for (auto &curr : ShapeData_Verts)
+		{
+			if ((AvgPt - curr).Size() < PtToAvgDist)
+				return false;
+		}
+
+		return true;
+	}
 };
 
 /*
@@ -2183,21 +2234,17 @@ class MPHORSO_API UWorldShapeFunction : public UObject
 public:
 
 	/*
-		This function determines which parts of
-		the world map are considered land and which
-		parts should be slated to determined as
-		either holes in the maps or lakes/oceans.
-
-		A flood fill is used later to determine
-		the outermost "ocean", which becomes the
-		bounding hole of the floating island, and
-		then which isolated pockets become smaller,
-		internal holes or lakes is chosen randomly,
-		methodically, or both.
+		Initializes any internal variables this function to perform its ops.
 	*/
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural World Generation|World Shape Function")
-		void DetermineShape(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells);
-	void DetermineShape_Implementation(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells) {}
+		void Initialize();
+	virtual void Initialize_Implementation() {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural World Generation|World Shape Function")
+		bool CellIsGround(UWorldCell* Cell);
+	virtual bool CellIsGround_Implementation(UWorldCell* Cell) { return false; }
+
+	void DetermineShape(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells);
 
 private:
 
@@ -2231,19 +2278,10 @@ struct FWorldGenIslandSettings
 	GENERATED_USTRUCT_BODY();
 
 	/*
-		The dimensions of the box which this
-		island is allowed to be constructed
-		within, in 0->1 bounds in reference
-		to the map's dimensions.
-
-		the Z bounds of the box may be clipped
-		short depending on how close the box is
-		to the minimum or maximum world Z.
-
-		Defines and is guaranteed to represent an AABB.
+		The dimensions of this island, in tiles.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings")
-		FVector BoxDimensions;
+		FIntVector BoxDimensions;
 
 	/*
 		The shaping function for this island.
@@ -2256,6 +2294,24 @@ struct FWorldGenIslandSettings
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings")
 		TSubclassOf<UWorldShapeFunction> ShapeFunction;
+
+	/*
+		The chance that an internal hole in the island will instead become an
+		internal lake.
+
+		0 means no lakes ever, while 1 guarantees that all internal holes will
+		become lakes.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+		float LakeChance = 0.75f;
+
+	/*
+		The chance that a generated lake
+		will actually be a hanging lake
+		(i.e. no ground underneath).
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+		float HangingLakeChance = 0.25;
 
 	/*
 		The number of sampling points used to
@@ -2279,9 +2335,18 @@ struct FWorldGenerationSettings
 {
 	GENERATED_USTRUCT_BODY();
 
-	// The dimensionality of the map, for use during generation.
+	/*
+		The bounds of the ellipsoid within
+		which island centers *must* be.
+		X value is for X/Y distance while Y
+		value is for Z distance.
+
+		Their actual positions get rounded to
+		the closest integer value coordinate
+		for ease of creation.
+	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
-		FVector MapDimensions;
+		FVector2D MaxIslandDistances;
 
 	/*
 		An array which represents both the number of
@@ -2322,9 +2387,9 @@ struct FWorldGenerationSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
 		TSubclassOf<UBiomeMap> BiomeMap;
 
-	// The "resolution" of the map in X*Y*Z Tiles, for use during rasterization.
+	// The size of a tile in UU, clamped to integer values for convenience of creation.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Generation Settings")
-		FVector RasterDimensions;
+		int TileSize = 200;
 
 };
 
@@ -2373,6 +2438,30 @@ public:
 	void Rasterize(const FWorldGenerationSettings& WorldSettings);
 
 private:
+
+	/*
+		Helper function for Generate().
+
+		Constructs the basic structure of the continent
+		given the current island settings; Determines
+		what is land, water, and hole.
+	*/
+	void ConstructContinentBase(
+								const FWorldGenIslandSettings& CurrIslSettings,
+								const FBox& IslBoundingBox,
+								TArray<TSharedPtr<UWorldCell>>& OutAllCellsShared,
+								TArray<UWorldCell*>& OutAllCellsExposed,
+								TArray<TSharedPtr<UWorldCell>>& OutNonHoleCellsShared,
+								TArray<UWorldCell*>& OutNonHoleCellsExposed
+							   );
+
+	/*
+		General helper function that flood fills cells.
+
+		If the predicate returns true for the current cell it is added to the
+		flood fill.
+	*/
+	TArray<UWorldCell*> FloodFillCells(UWorldCell* StartingCell, const TFunction<bool(UWorldCell*)>& ConnectedPredicate);
 
 };
 

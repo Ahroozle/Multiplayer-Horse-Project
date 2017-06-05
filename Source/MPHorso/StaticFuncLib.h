@@ -54,4 +54,8 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		static class AActor* CloneActor(class AActor* Original);
+
+	UFUNCTION(BlueprintCallable)
+		static void ExportToBitmap(const TArray<FColor>& pixels, FString fileName, int width, int height);
+
 };

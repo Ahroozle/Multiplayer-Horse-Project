@@ -1845,7 +1845,7 @@ void UWorldGenFuncLib::Delaunay2DToVoronoi2D(UObject* WorldContext, const TArray
 
 FName UBiomeMap::GetBiome(const FWorldGenEnvironmentData& InEnvironmentalData, TMap<FName, FVector2D>& OutBiomeRanges)
 {
-	return GetBiomeFromTable(StartingTable, InEnvironmentalData.EnvironmentData, OutBiomeRanges);
+	return GetBiomeFromTable(StartingTable, InEnvironmentalData.InternalMap, OutBiomeRanges);
 }
 
 FName UBiomeMap::GetBiomeFromTable(const FBiomeTable& Table, const TMap<FName, float>& InEnvironmentalData, TMap<FName, FVector2D>& OutBiomeRanges)
@@ -1930,10 +1930,31 @@ void UWorldMap::AddContinent(UWorldContinent* NewContinent)
 	WorldContinents.Add(MakeShareable(NewContinent));
 }
 
+
+void UWorldShapeFunction::DetermineShape(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells)
+{
+	/*
+		Three main "base types" are used for tiles in the beginning:
+			-	Ground			( 2)
+			-	Water			( 1)
+			-	Hanging Water	(-1)
+			-	Hole			(-2)
+
+		Shape functions determine cells are ground or holes.
+		afterward the outer function (AWorldGenerator::ConstructContinentBase)
+		determines which hole cells will stay as holes and which ones
+		will become water.
+	*/
+	for (auto *curr : InOutWorldCells)
+		curr->CellData.EnvData.InternalMap.Add((CellIsGround(curr) ? "IsGround" : "IsHole"), 1.0f);
+
+}
+
+
 AWorldGenerator::AWorldGenerator(const FObjectInitializer& _init) : Super(_init)
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	//PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = true;
 
 	bReplicates = true;
 	//bReplicateMovement = true;
@@ -1943,12 +1964,12 @@ AWorldGenerator::AWorldGenerator(const FObjectInitializer& _init) : Super(_init)
 
 void AWorldGenerator::BeginPlay()
 {
-
+	Super::BeginPlay();
 }
 
 void AWorldGenerator::Tick(float DeltaTime)
 {
-
+	Super::Tick(DeltaTime);
 }
 
 void AWorldGenerator::Build(FName WorldTypeToBuild, int InitialRandSeed)
@@ -1974,277 +1995,347 @@ void AWorldGenerator::Generate(const FWorldGenerationSettings& WorldSettings, in
 {
 	UWorldGenFuncLib::InitializeWorldRandom(InitialRandSeed);
 
-	const TArray<FWorldGenIslandSettings>& Islands = WorldSettings.Islands;
-
-	FVector MapExt = WorldSettings.MapDimensions / 2;
-
-	// Map bounding box from (0, 0, 0) to MapDimensions
-	FBox MapBoundingBox(FVector::ZeroVector, WorldSettings.MapDimensions);
-
-	WorldMap = MakeShareable(NewObject<UWorldMap>());
-	for (int currIslInd = 0; currIslInd < Islands.Num(); ++currIslInd)
+	struct IslandMapCollection
 	{
-		const FWorldGenIslandSettings& CurrIslandSettings = Islands[currIslInd];
-
-		const TSubclassOf<UWorldShapeFunction>& ShapeFunc = CurrIslandSettings.ShapeFunction;
-
-		// Pick a Z layer for this island to be on.
-
-		float ZLayer = 0;
-
-		if (0 == currIslInd)
-		{
-			ZLayer = FMath::RoundToFloat(Islands.Num() / 2);
-		}
-		else
-		{
-			int ChosenLayer = UWorldGenFuncLib::GetWorldRandom().RandRange(1, Islands.Num() - 1);
-			ZLayer = FMath::GetMappedRangeValueClamped({ 0.0f, (float)Islands.Num() }, { 0.0f, 1.0f }, (float)ChosenLayer);
-		}
-
-		FVector IslBoundExt = CurrIslandSettings.BoxDimensions / 2;
+		TArray<FColor> BiomeMap;
+		TMap<FName, TArray<FColor>> AttributeMaps;
+	};
+	
+	TArray<FBox> PrevIslandBoxes;
+	TArray<IslandMapCollection> IslandMaps;
+	int currIslInd = 0;
+	for (auto &currIsl : WorldSettings.Islands)
+	{
+		/*
+			Make an origin-centered bounding box to create the island with.
+		*/
+		FBox CreationBoundingBox(-FVector(currIsl.BoxDimensions / 2), FVector(currIsl.BoxDimensions / 2));
 
 		/*
-			Pick an X, Y point on the layer for the island's center to be
-			from (IslBound.X, IslBound.Y) to (MapWidth-IslBound.X, MapHeight-IslBound.Y)
-			for maintaining bounds
+			Construct the island
 		*/
-		float RandX = UWorldGenFuncLib::GetWorldRandom().FRandRange(IslBoundExt.X, (WorldSettings.MapDimensions - IslBoundExt).X);
-		float RandY = UWorldGenFuncLib::GetWorldRandom().FRandRange(IslBoundExt.Y, (WorldSettings.MapDimensions - IslBoundExt).Y);
-		FVector IslCenter(RandX, RandY, ZLayer);
+		TArray<TSharedPtr<UWorldCell>> AllCellsShared, NonHoleCellsShared;
+		TArray<UWorldCell*> AllCellsExposed, NonHoleCellsExposed;
+		ConstructContinentBase(currIsl, CreationBoundingBox, AllCellsShared, AllCellsExposed, NonHoleCellsShared, NonHoleCellsExposed);
 
-		// Construct the bounding box for the current island with its desired size
-		FBox IslBoundingBox(IslCenter - IslBoundExt, IslCenter + IslBoundExt);
-
-		// Clip the desired bounding box to a size that fits in the map's bounds.
-		IslBoundingBox.Min = MapBoundingBox.GetClosestPointTo(IslBoundingBox.Min);
-		IslBoundingBox.Max = MapBoundingBox.GetClosestPointTo(IslBoundingBox.Max);
-
-		// Determine the box where it can randomly be placed without exiting the map's bounds
-		TArray<FVector> Points;
-		const int& CurrNumSamplingPoints = CurrIslandSettings.NumSamplingPoints;
-
-		for (int currPoint = 0; currPoint < CurrNumSamplingPoints; ++currPoint)
-		{
-			RandX = UWorldGenFuncLib::GetWorldRandom().FRandRange(IslBoundingBox.Min.X, IslBoundingBox.Max.X);
-			RandY = UWorldGenFuncLib::GetWorldRandom().FRandRange(IslBoundingBox.Min.Y, IslBoundingBox.Max.Y);
-			Points.Add(FVector(RandX, RandY, 0) + IslCenter);
-		}
-
-		// Create this island's voronoi diagram
-		TArray<FSpanTri> Tris;
-		TArray<FSpanEdge> Edges;
-		UWorldGenFuncLib::Delaunay2D(this, Points, Tris, Edges);
-
-		TArray<FSpanPoly> VoronoiPolys;
-		Edges.Empty();
-		UWorldGenFuncLib::Delaunay2DToVoronoi2D(this, Tris, VoronoiPolys, Edges);
-
-		// Cut and reshape polygons whose points lie outside the boundaries of the spawning box
-		TArray<TSharedPtr<UWorldCell>> SpawnedCells;
-		TArray<UWorldCell*> UnprotectedSpawned;
-		for (auto &currPoly : VoronoiPolys)
-		{
-			FWorldGenVoronoiCellData ProcessedPoly;
-			for (auto &curr : currPoly.Sides)
-			{
-				FSpanEdge ProcessedEdge;
-				bool AOutside = FMath::PointBoxIntersection(curr.A, IslBoundingBox);
-				if (!AOutside || !FMath::PointBoxIntersection(curr.B, IslBoundingBox))
-				{
-					// TODO : IMPL CLIPPING AND REFITTING INTO BOUNDS
-
-					// grab the offending point and its pair.
-					FVector Offender = (AOutside ? curr.A : curr.B);
-					FVector OtherPointA = (AOutside ? curr.B : curr.A);
-					
-					// there should only ever be one other unique edge that shares a vert with the current one,
-					// so FindByPredicate() should be fine.
-					FSpanEdge* Found = currPoly.Sides.FindByPredicate(
-																		[&Offender, &OtherPointA](const FSpanEdge& a)
-																		{
-																			return (a.A == Offender && a.B != OtherPointA) ||
-																				   (a.B == Offender && a.A != OtherPointA);
-																		}
-																	 );
-
-					if (nullptr != Found)
-					{
-						FVector OtherPointB = (Found->A == Offender ? Found->B : Found->A);
-
-						FVector EdgeADir = (OtherPointA - Offender);
-						FVector EdgeBDir = (OtherPointB - Offender);
-
-						FVector ReciprocalA = EdgeADir.Reciprocal();
-						FVector RecipricalB = EdgeBDir.Reciprocal();
-
-						// and now it's time to steal from FMath::LineBoxIntersection in Box.h
-
-						FVector TimesEdgeA, TimesEdgeB;
-
-						if (Offender.X < IslBoundingBox.Min.X)
-						{
-							TimesEdgeA.X = TimesEdgeB.X = (IslBoundingBox.Min.X - Offender.X);
-							TimesEdgeA.X *= ReciprocalA.X;
-							TimesEdgeB.X *= RecipricalB.X;
-						}
-						else if (Offender.X > IslBoundingBox.Max.X)
-						{
-							TimesEdgeA.X = TimesEdgeB.X = (IslBoundingBox.Max.X - Offender.X);
-							TimesEdgeA.X *= ReciprocalA.X;
-							TimesEdgeB.X *= RecipricalB.X;
-						}
-
-						if (Offender.Y < IslBoundingBox.Min.Y)
-						{
-							TimesEdgeA.Y = TimesEdgeB.Y = (IslBoundingBox.Min.Y - Offender.Y);
-							TimesEdgeA.Y *= ReciprocalA.Y;
-							TimesEdgeB.Y *= RecipricalB.Y;
-						}
-						else if (Offender.Y > IslBoundingBox.Max.Y)
-						{
-							TimesEdgeA.Y = TimesEdgeB.Y = (IslBoundingBox.Max.Y - Offender.Y);
-							TimesEdgeA.Y *= ReciprocalA.Y;
-							TimesEdgeB.Y *= RecipricalB.Y;
-						}
-
-						// In an operation with two conjoined edges this should always end up producing exactly three.
-
-						FSpanEdge NewA, NewB, NewThird;
-
-						NewA.A = Offender + (EdgeADir * TimesEdgeA);
-						NewB.A = Offender + (EdgeBDir * TimesEdgeB);
-
-						NewA.B = OtherPointA;
-						NewB.B = OtherPointB;
-
-						NewThird.A = NewA.A;
-						NewThird.B = NewB.A;
-
-						ProcessedPoly.ShapeData_Edges.AddUnique(NewA);
-						ProcessedPoly.ShapeData_Edges.AddUnique(NewB);
-						ProcessedPoly.ShapeData_Edges.AddUnique(NewThird);
-
-
-						ProcessedPoly.ShapeData_Verts.AddUnique(NewA.A);
-						ProcessedPoly.ShapeData_Verts.AddUnique(NewA.B);
-						ProcessedPoly.ShapeData_Verts.AddUnique(NewB.A);
-						ProcessedPoly.ShapeData_Verts.AddUnique(NewB.B);
-						ProcessedPoly.ShapeData_Verts.AddUnique(NewThird.A);
-						ProcessedPoly.ShapeData_Verts.AddUnique(NewThird.B);
-
-					}
-					else
-						UStaticFuncLib::Print("AWorldGenerator::Generate: For some reason, the current voronoi cell is incomplete! Not sure why this happen but it needs fixing before this function will work.", true);
-
-				}
-				else
-				{
-					ProcessedPoly.ShapeData_Edges.AddUnique(curr);
-
-					ProcessedPoly.ShapeData_Verts.AddUnique(curr.A);
-					ProcessedPoly.ShapeData_Verts.AddUnique(curr.B);
-				}
-			}
-
-			ProcessedPoly.ShapeData_Center = currPoly.Site;
-
-			UWorldCell* CurrCell = NewObject<UWorldCell>();
-			UnprotectedSpawned[UnprotectedSpawned.Add(CurrCell)]->CellData = MoveTemp(ProcessedPoly);
-			SpawnedCells.Add(MakeShareable(CurrCell));
-		}
-
-		// Pass to the islandfunction to determine where the ground is
-
-
-		// Grabbing out the non-hole areas 
-		TArray<UWorldCell*> SolidCells;
-		for (auto *currCell : UnprotectedSpawned)
-		{
-			if (currCell->CellData.Biome != "HOLE")
-				SolidCells.Add(currCell);
-		}
-
-		// Do all the passes on this island
+		/*
+			Do all the attribute-populating passes
+			on this island.
+		*/
 		for (auto &currPass : WorldSettings.Passes)
-			currPass.GetDefaultObject()->Apply(SolidCells);
+			currPass.GetDefaultObject()->Apply(NonHoleCellsExposed);
 
-		// Determine biomes
-		for (auto *currCell : SolidCells)
+		/*
+			Assign Biomes
+		*/
+		if (nullptr != WorldSettings.BiomeMap)
 		{
-			FWorldGenVoronoiCellData& CellData = currCell->CellData;
-			CellData.Biome = WorldSettings.BiomeMap.GetDefaultObject()->GetBiome(CellData.EnvironmentData, CellData.BiomeRanges);
-		}
-
-		// Determine regions (name regions?)
-		
-		// Set up neighbor cell connections. (TODO MIGHTY NEED TO BE OPTIMIZED)
-		for (auto *currCellA : SolidCells)
-		{
-			for (auto *currCellB : SolidCells)
+			for (auto *currCell : NonHoleCellsExposed)
 			{
-				for (auto &currEdgeA : currCellA->CellData.ShapeData_Edges)
-				{
-					if (currCellB->CellData.ShapeData_Edges.Contains(currEdgeA))
-					{
-						// They're neighbors, we're done here.
-
-						currCellA->NeighborCells.AddUnique(MakeShareable(currCellB));
-						currCellB->NeighborCells.AddUnique(MakeShareable(currCellA));
-
-						break;
-					}
-				}
+				FWorldGenVoronoiCellData& CellData = currCell->CellData;
+				CellData.Biome = WorldSettings.BiomeMap.GetDefaultObject()->GetBiome(CellData.EnvData, CellData.BiomeRanges);
 			}
 		}
+		else
+			UStaticFuncLib::Print("AWorldGenerator::Generate: Island " + FString::FromInt(currIslInd) + " has no Biome Map! Please supply one.", true);
 
-		TArray<UWorldCell*> RemainingWorldCells = SolidCells;
-		TArray<UWorldCell*> CurrentCellsUnderConsideration;
+
+		/*
+			Determine Regions
+		*/
+		TArray<UWorldCell*> RemainingWorldCells = NonHoleCellsExposed;
 		TArray<TSharedPtr<UWorldRegion>> CreatedRegions;
 		while (RemainingWorldCells.Num() > 0) // While there's still cells left unregioned
 		{
 			int RandCellInd = UWorldGenFuncLib::GetWorldRandom().RandRange(0, RemainingWorldCells.Num() - 1);
-			CurrentCellsUnderConsideration.Add(RemainingWorldCells[RandCellInd]);
+			UWorldCell* ChosenStartCell = RemainingWorldCells[RandCellInd];
+
+			auto currPred = [&ChosenStartCell](UWorldCell* a) { return a->CellData.Biome == ChosenStartCell->CellData.Biome; };
+			TArray<UWorldCell*> CurrRegionCells = FloodFillCells(ChosenStartCell, currPred);
 
 			UWorldRegion* CurrWorldRegion = CreatedRegions[CreatedRegions.Add(MakeShareable(NewObject<UWorldRegion>()))].Get();
-			while (CurrentCellsUnderConsideration.Num() > 0) // while this current region is still being scoped out
-			{
-				for (auto &currNeighbor : CurrentCellsUnderConsideration[0]->NeighborCells)
-				{
-					RemainingWorldCells.Remove(currNeighbor.Get());
-					CurrentCellsUnderConsideration.AddUnique(currNeighbor.Get());
-					CurrWorldRegion->Cells.AddUnique(currNeighbor);
-				}
-			}
+
+			for (auto *currCell : CurrRegionCells)
+				CurrWorldRegion->Cells.Add(MakeShareable(currCell));
 		}
 
+
 		/*
-			TODO : NAMING REGIONS
-				not sure how regions would be named tbh. Will have to do more research.
-				definitely will be based on biomes somewhat, though.
-
-				possible resource: http://pcg.wikidot.com/pcg-algorithm:name-generation
+			Populate Continent
 		*/
-
-
-		// Determine continent (name continent?)
-
 		TSharedPtr<UWorldContinent> NewContinent = MakeShareable(NewObject<UWorldContinent>());
 		NewContinent.Get()->Regions = MoveTemp(CreatedRegions);
 
+
 		/*
-			TODO : NAMING CONTINENTS
-				not sure how continents would be named tbh. Will have to do more research.
-				possibly based on general biome composition and/or general range of cell attrs?
+			Add continent to WorldMap
 		*/
-
-
-		// Add continent to world map.
 		WorldMap.Get()->AddContinent(NewContinent.Get());
+
+		++currIslInd;
 	}
+
+	/*
+		TODO : 
+			Remember, this is in the middle of a change from the
+			previous system to the new system, which:
+
+			For Each Island:
+				1) Generates it at origin
+				2) Parses this into several *images* of data at resolutions based on tile size and island bounding box size
+
+			Need to make passes for:
+				-Elevation
+				-Moisture
+				-(Possibly "Magic" attr for testing and since Hanging Lakes should have extra differentiation from Normal Lakes?)
+
+			Missing things include:
+				-River data (basically a lot of edges going downward from elevations)
+				-Road data (either follow Amit's method or make my own, I guess. Splines will definitely be useful, though.)
+
+
+			It might also benefit me to change save data into:
+				-Island World Positions
+				-Their data in the form of FColor images
+				-Player deltas (maybe just update their images whenever players change something?)
+
+			if I save their data in an image format I could possibly also get away with doing
+			world updates via image manipulation algorithms, which iirc are usually pretty well-
+			optimized by this point in time.
+
+			I also might chunk the islands "traditionally" instead of on a per-cell or per-several-cells
+			basis due to the abrupt shift back into a tiled mindset.
+
+			Also AWorldGenerator::Rasterize miiiight be obsolete after this so I might have to
+			get rid of it.
+	*/
+
 }
 
 void AWorldGenerator::Rasterize(const FWorldGenerationSettings& WorldSettings)
 {
 	// TODO : IMPL
+}
+
+void AWorldGenerator::ConstructContinentBase(
+												const FWorldGenIslandSettings& CurrIslSettings,
+												const FBox& IslBoundingBox,
+												TArray<TSharedPtr<UWorldCell>>& OutAllCellsShared,
+												TArray<UWorldCell*>& OutAllCellsExposed,
+												TArray<TSharedPtr<UWorldCell>>& OutNonHoleCellsShared,
+												TArray<UWorldCell*>& OutNonHoleCellsExposed
+											)
+{
+	TArray<FVector> Points;
+	float RandX, RandY;
+	for (int currPoint = 0; currPoint < CurrIslSettings.NumSamplingPoints; ++currPoint)
+	{
+		RandX = UWorldGenFuncLib::GetWorldRandom().FRandRange(IslBoundingBox.Min.X, IslBoundingBox.Max.X);
+		RandY = UWorldGenFuncLib::GetWorldRandom().FRandRange(IslBoundingBox.Min.Y, IslBoundingBox.Max.Y);
+		Points.Add(FVector(RandX, RandY, 0));
+	}
+
+	// Create this island's voronoi diagram
+	TArray<FSpanTri> Tris;
+	TArray<FSpanEdge> Edges;
+	UWorldGenFuncLib::Delaunay2D(this, Points, Tris, Edges);
+
+	TArray<FSpanPoly> VoronoiPolys;
+	Edges.Empty();
+	UWorldGenFuncLib::Delaunay2DToVoronoi2D(this, Tris, VoronoiPolys, Edges);
+
+	// Cut and reshape polygons whose points lie outside the boundaries of the spawning box
+	for (auto &currPoly : VoronoiPolys)
+	{
+		FWorldGenVoronoiCellData ProcessedPoly;
+		for (auto &curr : currPoly.Sides)
+		{
+			FSpanEdge ProcessedEdge;
+			bool AOutside = FMath::PointBoxIntersection(curr.A, IslBoundingBox);
+			if (!AOutside || !FMath::PointBoxIntersection(curr.B, IslBoundingBox))
+			{
+				// TODO : IMPL CLIPPING AND REFITTING INTO BOUNDS
+
+				// grab the offending point and its pair.
+				FVector Offender = (AOutside ? curr.A : curr.B);
+				FVector OtherPointA = (AOutside ? curr.B : curr.A);
+
+				// there should only ever be one other unique edge that shares a vert with the current one,
+				// so FindByPredicate() should be fine.
+				FSpanEdge* Found = currPoly.Sides.FindByPredicate(
+					[&Offender, &OtherPointA](const FSpanEdge& a)
+				{
+					return (a.A == Offender && a.B != OtherPointA) ||
+						(a.B == Offender && a.A != OtherPointA);
+				}
+				);
+
+				if (nullptr != Found)
+				{
+					FVector OtherPointB = (Found->A == Offender ? Found->B : Found->A);
+
+					FVector EdgeADir = (OtherPointA - Offender);
+					FVector EdgeBDir = (OtherPointB - Offender);
+
+					FVector ReciprocalA = EdgeADir.Reciprocal();
+					FVector RecipricalB = EdgeBDir.Reciprocal();
+
+					// and now it's time to steal from FMath::LineBoxIntersection in Box.h
+
+					FVector TimesEdgeA, TimesEdgeB;
+
+					if (Offender.X < IslBoundingBox.Min.X)
+					{
+						TimesEdgeA.X = TimesEdgeB.X = (IslBoundingBox.Min.X - Offender.X);
+						TimesEdgeA.X *= ReciprocalA.X;
+						TimesEdgeB.X *= RecipricalB.X;
+					}
+					else if (Offender.X > IslBoundingBox.Max.X)
+					{
+						TimesEdgeA.X = TimesEdgeB.X = (IslBoundingBox.Max.X - Offender.X);
+						TimesEdgeA.X *= ReciprocalA.X;
+						TimesEdgeB.X *= RecipricalB.X;
+					}
+
+					if (Offender.Y < IslBoundingBox.Min.Y)
+					{
+						TimesEdgeA.Y = TimesEdgeB.Y = (IslBoundingBox.Min.Y - Offender.Y);
+						TimesEdgeA.Y *= ReciprocalA.Y;
+						TimesEdgeB.Y *= RecipricalB.Y;
+					}
+					else if (Offender.Y > IslBoundingBox.Max.Y)
+					{
+						TimesEdgeA.Y = TimesEdgeB.Y = (IslBoundingBox.Max.Y - Offender.Y);
+						TimesEdgeA.Y *= ReciprocalA.Y;
+						TimesEdgeB.Y *= RecipricalB.Y;
+					}
+
+					// In an operation with two conjoined edges this should always end up producing exactly three.
+
+					FSpanEdge NewA, NewB, NewThird;
+
+					NewA.A = Offender + (EdgeADir * TimesEdgeA);
+					NewB.A = Offender + (EdgeBDir * TimesEdgeB);
+
+					NewA.B = OtherPointA;
+					NewB.B = OtherPointB;
+
+					NewThird.A = NewA.A;
+					NewThird.B = NewB.A;
+
+					ProcessedPoly.ShapeData_Edges.AddUnique(NewA);
+					ProcessedPoly.ShapeData_Edges.AddUnique(NewB);
+					ProcessedPoly.ShapeData_Edges.AddUnique(NewThird);
+
+
+					ProcessedPoly.ShapeData_Verts.AddUnique(NewA.A);
+					ProcessedPoly.ShapeData_Verts.AddUnique(NewA.B);
+					ProcessedPoly.ShapeData_Verts.AddUnique(NewB.A);
+					ProcessedPoly.ShapeData_Verts.AddUnique(NewB.B);
+					ProcessedPoly.ShapeData_Verts.AddUnique(NewThird.A);
+					ProcessedPoly.ShapeData_Verts.AddUnique(NewThird.B);
+
+				}
+				else
+					UStaticFuncLib::Print("AWorldGenerator::Generate: For some reason, the current voronoi cell is incomplete! Not sure why this happen but it needs fixing before this function will work.", true);
+
+			}
+			else
+			{
+				ProcessedPoly.ShapeData_Edges.AddUnique(curr);
+
+				ProcessedPoly.ShapeData_Verts.AddUnique(curr.A);
+				ProcessedPoly.ShapeData_Verts.AddUnique(curr.B);
+			}
+		}
+
+		ProcessedPoly.ShapeData_Center = currPoly.Site;
+
+		UWorldCell* CurrCell = NewObject<UWorldCell>();
+		OutAllCellsExposed[OutAllCellsExposed.Add(CurrCell)]->CellData = MoveTemp(ProcessedPoly);
+		OutAllCellsShared.Add(MakeShareable(CurrCell));
+	}
+
+	// Set up neighbor cell connections. (TODO MIGHTY NEED TO BE OPTIMIZED)
+	for (auto *currCellA : OutAllCellsExposed)
+	{
+		for (auto *currCellB : OutAllCellsExposed)
+		{
+			for (auto &currEdgeA : currCellA->CellData.ShapeData_Edges)
+			{
+				if (currCellB->CellData.ShapeData_Edges.Contains(currEdgeA))
+				{
+					// They're neighbors, we're done here.
+
+					currCellA->NeighborCells.AddUnique(MakeShareable(currCellB));
+					currCellB->NeighborCells.AddUnique(MakeShareable(currCellA));
+
+					break;
+				}
+			}
+		}
+	}
+
+	// Pass to the islandfunction to determine where the ground is
+	UWorldShapeFunction* ShapeFunc = NewObject<UWorldShapeFunction>(this, CurrIslSettings.ShapeFunction);
+	ShapeFunc->Initialize();
+	ShapeFunc->DetermineShape(OutAllCellsExposed);
+
+	// Separating hole and non-hole areas for later ops
+	TArray<UWorldCell*> HoleCells;
+	for (auto *currCell : OutAllCellsExposed)
+	{
+		if (currCell->CellData.EnvData.InternalMap.FindRef("BaseType") > -2.0f)
+			OutNonHoleCellsShared.Add(MakeShareable(OutNonHoleCellsExposed[OutNonHoleCellsExposed.Add(currCell)]));
+		else
+			HoleCells.Add(currCell);
+	}
+	
+	
+	auto HolePredicate = [](UWorldCell* a) { return nullptr != a->CellData.EnvData.InternalMap.Find("IsHole"); };
+
+	// Get rid of the elephant-in-the-room surrounding "hole ocean"
+	TArray<UWorldCell*> OuterBoundsHoleCells = FloodFillCells(HoleCells[0], HolePredicate);
+	for (auto *curr : OuterBoundsHoleCells)
+		HoleCells.Remove(curr);
+
+	while (HoleCells.Num() > 0)
+	{
+		TArray<UWorldCell*> NextHoleRegion = FloodFillCells(HoleCells[0], HolePredicate);
+
+		if (UWorldGenFuncLib::GetWorldRandom().FRand() < CurrIslSettings.LakeChance)
+		{
+			// This hole becomes a lake.
+			for (auto *curr : NextHoleRegion)
+			{
+				curr->CellData.EnvData.InternalMap.Remove("IsHole");
+
+				bool IsHangingLake = UWorldGenFuncLib::GetWorldRandom().FRand() < CurrIslSettings.HangingLakeChance;
+				curr->CellData.EnvData.InternalMap.Add((IsHangingLake ? "IsHangingLake" : "IsLake"), 1.0f);
+
+				OutNonHoleCellsShared.Add(MakeShareable(OutNonHoleCellsExposed[OutNonHoleCellsExposed.Add(curr)]));
+			}
+		}
+
+		for (auto *curr : NextHoleRegion)
+			HoleCells.Remove(curr);
+	}
+}
+
+TArray<UWorldCell*> AWorldGenerator::FloodFillCells(UWorldCell* StartingCell, const TFunction<bool(UWorldCell*)>& ConnectedPredicate)
+{
+	TArray<UWorldCell*> Floodfill;
+
+	TArray<UWorldCell*> queue;
+	queue.Add(StartingCell);
+	while (queue.Num() > 0)
+	{
+		for (auto &currNeighbor : queue[0]->NeighborCells)
+		{
+			if (ConnectedPredicate(currNeighbor.Get()))
+				queue.Add(currNeighbor.Get());
+		}
+	}
+
+	return Floodfill;
 }

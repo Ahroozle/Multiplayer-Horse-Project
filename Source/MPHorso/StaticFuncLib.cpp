@@ -262,3 +262,8 @@ AActor* UStaticFuncLib::CloneActor(AActor* Original)
 
 	return Spawned;
 }
+
+void UStaticFuncLib::ExportToBitmap(const TArray<FColor>& pixels, FString fileName, int width, int height)
+{
+	FFileHelper::CreateBitmap(*(FPaths::GameDir() + fileName + ".bmp"), width, height, pixels.GetData());
+}
