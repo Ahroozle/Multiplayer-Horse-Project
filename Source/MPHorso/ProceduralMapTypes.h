@@ -1813,6 +1813,13 @@ public:
 	UFUNCTION(BlueprintCallable)
 		static void Delaunay2DToVoronoi2D(UObject* WorldContext, const TArray<FSpanTri>& InDelaunay, TArray<FSpanPoly>& OutPolygons, TArray<FSpanEdge>& OutEdges, float MaxCircumcenterDistance = 0);
 
+	// Flood fills cells until it can gather no more and returns the result
+	//UFUNCTION(BlueprintCallable)
+	//	static void FloodFillAmong(UWorldCell* StartingCell, const TArray<class UWorldCell*>& BoundsArray, TArray<class UWorldCell*>& OutFloodFill);
+
+	UFUNCTION(BlueprintCallable)
+		static void FloodFillIfHasAttribute(UWorldCell* StartingCell, FName AttributeName, TArray<class UWorldCell*>& OutFloodFill);
+
 private:
 
 	static FRandomStream RandStream;
@@ -2079,31 +2086,9 @@ struct FWorldGenVoronoiCellData
 };
 
 /*
-	class that represents a subcell of a world cell,
-	used to update conditions like temperature, wind,
-	etc. on a less granular scale as well as
-	selectively update the state of pieces of the
-	world.
-*/
-UCLASS()
-class MPHORSO_API UWorldUpdateCell : public UObject
-{
-	GENERATED_BODY()
-
-public:
-
-	// The voronoi data for this update cell.
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Update Cell")
-		FWorldGenVoronoiCellData CellData;
-
-private:
-
-};
-
-/*
 	class that represents a single voronoi cell of the world map.
 */
-UCLASS()
+UCLASS(BlueprintType)
 class MPHORSO_API UWorldCell : public UObject
 {
 	GENERATED_BODY()
@@ -2114,17 +2099,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Cell")
 		FWorldGenVoronoiCellData CellData;
 
-	// This cell's respective update subcells.
-	TArray<TSharedPtr<UWorldUpdateCell>> UpdateCells;
-
 	// All cells that share an edge with this one
-	TArray<TSharedPtr<UWorldCell>> NeighborCells;
-
-	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Cell")
-		void GetUpdateCells(TArray<UWorldUpdateCell*>& OutUpdateCells) { for (auto &curr : UpdateCells) OutUpdateCells.Add(curr.Get()); }
-
-	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Cell")
-		void GetNeighborCells(TArray<UWorldCell*>& OutNeighbors) { for (auto &curr : NeighborCells) OutNeighbors.Add(curr.Get()); }
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Cell")
+		TArray<UWorldCell*> NeighborCells;
 
 private:
 
@@ -2134,7 +2111,7 @@ private:
 	This is an extra step in between continents and
 	cells used to segregate biomes from one another.
 */
-UCLASS()
+UCLASS(BlueprintType)
 class MPHORSO_API UWorldRegion : public UObject
 {
 	GENERATED_BODY()
@@ -2142,10 +2119,8 @@ class MPHORSO_API UWorldRegion : public UObject
 public:
 
 	// The world cells that make up this world region.
-	TArray<TSharedPtr<UWorldCell>> Cells;
-
-	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Continent")
-		void GetCells(TArray<UWorldCell*>& OutRegionCells) { for (auto &curr : Cells) OutRegionCells.Add(curr.Get()); }
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Continent")
+		TArray<UWorldCell*> Cells;
 
 private:
 
@@ -2157,7 +2132,7 @@ private:
 
 	Separate islands are separate "continents."
 */
-UCLASS()
+UCLASS(BlueprintType)
 class MPHORSO_API UWorldContinent : public UObject
 {
 	GENERATED_BODY()
@@ -2165,10 +2140,50 @@ class MPHORSO_API UWorldContinent : public UObject
 public:
 
 	// The world regions which make up this continent
-	TArray<TSharedPtr<UWorldRegion>> Regions;
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Continent")
+		TArray<UWorldRegion*> Regions;
 
-	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Continent")
-		void GetRegions(TArray<UWorldRegion*>& OutRegions) { for (auto &curr : Regions) OutRegions.Add(curr.Get()); }
+	/*
+		The biomes of the map, by color.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Continent")
+		TArray<FColor> BiomeMap;
+
+	/*
+		The regions of the map, colored by "index"
+		into an array of names specific to the
+		continent.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Continent")
+		TArray<FColor> RegionMap;
+
+	/*
+		The generic attribute maps.
+	*/
+	TMap<FName, TArray<FColor>> AttributeMaps;
+
+	/*
+		Whether or not this continent is "dead."
+
+		Dead continents receive no updates.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Continent")
+		bool IsDead = false;
+
+
+	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Continent")
+		bool GetAttributeMap(FName Attribute, TArray<FColor>& OutAttributeMap)
+		{
+			TArray<FColor>* Attr = AttributeMaps.Find(Attribute);
+
+			if (nullptr != Attr)
+			{
+				OutAttributeMap = *Attr;
+				return true;
+			}
+
+			return false;
+		}
 
 private:
 
@@ -2181,41 +2196,52 @@ private:
 	Contains redundant data in multiple degrees
 	of granularity for ease of manipulation.
 */
-UCLASS()
+UCLASS(BlueprintType)
 class MPHORSO_API UWorldMap : public UObject
 {
 	GENERATED_BODY()
 
 public:
 
-	// The update cells of the world, stored for ease-of-access
-	TArray<TSharedPtr<UWorldUpdateCell>> UpdateCells;
-
 	// The world cells that make up the entire map.
-	TArray<TSharedPtr<UWorldCell>> WorldCells;
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Map")
+		TArray<UWorldCell*> WorldCells;
 
 	// The world regions/biomes, for biome-wide operatopns.
-	TArray<TSharedPtr<UWorldRegion>> WorldRegions;
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Map")
+		TArray<UWorldRegion*> WorldRegions;
 
 	// The world cells' continents, for continent-wide operations.
-	TArray<TSharedPtr<UWorldContinent>> WorldContinents;
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Map")
+		TArray<UWorldContinent*> WorldContinents;
+
+	/*
+		Additional specific information arrays
+	*/
+
+	// The outer edges of the island
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Map")
+		TArray<UWorldCell*> IslandEdges;
+
+	// All edges of islands around inner holes
+	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Map")
+		TArray<UWorldCell*> InnerIslandEdges;
+
+	// The coasts of all normal lakes on the island.
+		TArray<TArray<UWorldCell*>> NormalLakeCoasts;
+
+	// The coasts of all hanging lakes on the island.
+		TArray<TArray<UWorldCell*>> HangingLakeCoasts;
 
 	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
-		void GetWorldUpdateCells(TArray<UWorldUpdateCell*>& OutUpdateCells) { for (auto &curr : UpdateCells) OutUpdateCells.Add(curr.Get()); }
+		int GetNumNormalLakeCoasts() { return NormalLakeCoasts.Num(); }
+	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
+		TArray<UWorldCell*>& GetNormalLakeCoast(int index) { return NormalLakeCoasts[index]; }
 
 	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
-		void GetWorldCells(TArray<UWorldCell*>& OutWorldCells) { for (auto &curr : WorldCells) OutWorldCells.Add(curr.Get()); }
-
+		int GetNumHangingLakeCoasts() { return HangingLakeCoasts.Num(); }
 	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
-		void GetWorldRegions(TArray<UWorldRegion*>& OutWorldRegions) { for (auto &curr : WorldRegions) OutWorldRegions.Add(curr.Get()); }
-
-	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Map")
-		void GetWorldContinents(TArray<UWorldContinent*>& OutWorldContinents) { for (auto &curr : WorldContinents) OutWorldContinents.Add(curr.Get()); }
-
-	void AddUpdateCell(UWorldUpdateCell* NewUpdateCell);
-	void AddCell(UWorldCell* NewCell);
-	void AddRegion(UWorldRegion* NewRegion);
-	void AddContinent(UWorldContinent* NewContinent);
+		TArray<UWorldCell*>& GetHangingLakeCoast(int index) { return HangingLakeCoasts[index]; }
 
 private:
 
@@ -2240,6 +2266,9 @@ public:
 		void Initialize();
 	virtual void Initialize_Implementation() {}
 
+	/*
+		The actual function which determines whether a cell is ground or not.
+	*/
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Procedural World Generation|World Shape Function")
 		bool CellIsGround(UWorldCell* Cell);
 	virtual bool CellIsGround_Implementation(UWorldCell* Cell) { return false; }
@@ -2260,9 +2289,16 @@ class MPHORSO_API UWorldGenPass : public UObject
 
 public:
 
+	/*
+		The applying function of the pass
+
+		NOTE: boolean return is just to make it
+			a function and not an event blueprint-side!
+			the return value is ignored.
+	*/
 	UFUNCTION(BlueprintNativeEvent, Category = "Procedural World Generation|World Generation Pass")
-		void Apply(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells);
-	virtual void Apply_Implementation(UPARAM(Ref) TArray<UWorldCell*>& InOutWorldCells) {}
+		bool Apply(UWorldMap* InWorldMap);
+	virtual bool Apply_Implementation(UWorldMap* InWorldMap) { return false; }
 
 private:
 
@@ -2276,6 +2312,13 @@ USTRUCT(BlueprintType)
 struct FWorldGenIslandSettings
 {
 	GENERATED_USTRUCT_BODY();
+
+	/*
+		Whether this continent is generated
+		as a dead continent or not.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|WorldGen Island Settings")
+		bool IsDead = false;
 
 	/*
 		The dimensions of this island, in tiles.
@@ -2411,7 +2454,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 
-	TSharedPtr<UWorldMap> WorldMap;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural World Generation|World Generator")
+		UWorldMap* WorldMap;
 
 	/*
 		This map contains all of the different layouts of worlds which can
@@ -2423,9 +2467,6 @@ public:
 	*/
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Procedural World Generation|World Generator")
 		TMap<FName, FWorldGenerationSettings> WorldTypes;
-
-	UFUNCTION(BlueprintPure, Category = "Procedural World Generation|World Generator")
-		UWorldMap* GetWorldMap() { return WorldMap.Get(); }
 
 	// Function which both generates and rasterizes the world.
 	UFUNCTION(BlueprintCallable, Category = "Procedural World Generation|World Generator")
@@ -2439,6 +2480,8 @@ public:
 
 private:
 
+	void GenerateIslandMaps();
+
 	/*
 		Helper function for Generate().
 
@@ -2446,14 +2489,7 @@ private:
 		given the current island settings; Determines
 		what is land, water, and hole.
 	*/
-	void ConstructContinentBase(
-								const FWorldGenIslandSettings& CurrIslSettings,
-								const FBox& IslBoundingBox,
-								TArray<TSharedPtr<UWorldCell>>& OutAllCellsShared,
-								TArray<UWorldCell*>& OutAllCellsExposed,
-								TArray<TSharedPtr<UWorldCell>>& OutNonHoleCellsShared,
-								TArray<UWorldCell*>& OutNonHoleCellsExposed
-							   );
+	void ConstructContinentBase(const FWorldGenIslandSettings& CurrIslSettings, const FBox& IslBoundingBox, TArray<UWorldCell*>& OutNonHoleCells);
 
 	/*
 		General helper function that flood fills cells.
@@ -2715,4 +2751,12 @@ private:
 			further as a default as well since it
 			might be a bit close-to-character for
 			a default zoom as of right now?
+
+			Also, rework the chat to be simpler
+			and not take up half the screen in
+			the "pause" menu. the game's
+			direction has changed so much since
+			the start that it's not even
+			appropriate to have such a complex
+			chat system anymore.
 */
