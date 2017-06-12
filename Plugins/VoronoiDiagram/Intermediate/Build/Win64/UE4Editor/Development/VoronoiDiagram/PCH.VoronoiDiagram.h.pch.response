@@ -1,0 +1,314 @@
+/Zc:inline
+/nologo
+/Oi
+/c
+/Gy
+/Zm850
+/wd4819
+/D_CRT_STDIO_LEGACY_WIDE_SPECIFIERS=1
+/D_SILENCE_STDEXT_HASH_DEPRECATION_WARNINGS=1
+/D_WINDLL
+/Ox
+/Ot
+/Ob2
+/errorReport:prompt
+/EHsc
+/Z7
+/MD
+/bigobj
+/fp:fast
+/Zo
+/Zp8
+/wd4463
+/wd4838
+/w44668
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source
+/I "D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Source\VoronoiDiagram\Private"
+/I "D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Source"
+/I "D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Source\VoronoiDiagram\Public"
+/I "D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Source\VoronoiDiagram"
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Internationalization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Async
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Containers
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Delegates
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\GenericPlatform
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\HAL
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Logging
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Math
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Misc
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Modules
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Modules\Boilerplate
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\ProfilingDebugging
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Serialization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Serialization\Csv
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Stats
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Templates
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\UObject
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core\Public\Windows
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Core
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject\Public\Blueprint
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject\Public\Internationalization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject\Public\Misc
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject\Public\Serialization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject\Public\Templates
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject\Public\UObject
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\CoreUObject
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\CoreUObject
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\AI
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\AI\Navigation
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Animation
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Curves
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\EdGraph
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Features
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Internationalization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Net
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\PacketHandlers
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Performance
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Physics
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Rendering
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Slate
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\Tests
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine\Public\VisualLogger
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Engine
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Engine
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Json\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Json\Public\Dom
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Json\Public\Policies
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Json\Public\Serialization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Json
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Animation
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Application
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Brushes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Fonts
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Input
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Layout
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Logging
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Rendering
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Sound
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Stats
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Styling
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Textures
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Types
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore\Public\Widgets
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\SlateCore
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SlateCore
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\InputCore\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\InputCore\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\InputCore
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\InputCore
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Application
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Commands
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Docking
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Layout
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\MetaData
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\MultiBox
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Notifications
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Styling
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Text
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Text\Android
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Text\IOS
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Framework\Views
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Colors
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Docking
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Images
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Input
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\LayerManager
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Layout
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Navigation
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Notifications
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Text
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate\Public\Widgets\Views
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Slate
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Slate
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Messaging\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Messaging\Public\Deprecated
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Messaging\Public\Helpers
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Messaging
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\RenderCore\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\RenderCore
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\RHI\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\RHI
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\ShaderCore\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\ShaderCore
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\AssetRegistry\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\AssetRegistry
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\EngineMessages\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\EngineMessages
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\EngineMessages
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\EngineSettings\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\EngineSettings\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\EngineSettings
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\EngineSettings
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SynthBenchmark\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SynthBenchmark
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Renderer\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Renderer
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\GameplayTags\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\GameplayTags\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\GameplayTags
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\GameplayTags
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\AIModule\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\AIModule\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\AIModule
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\AIModule
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\GameplayTasks\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\GameplayTasks\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\GameplayTasks
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\GameplayTasks
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\DatabaseSupport\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\DatabaseSupport
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\PacketHandlers\PacketHandler\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\PacketHandlers\PacketHandler\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\PacketHandler
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\PacketHandlers\PacketHandler
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\PacketHandlers\ReliabilityHandlerComponent\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\PacketHandlers\ReliabilityHandlerComponent
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\HardwareSurvey\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\HardwareSurvey
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Programs\UnrealLightmass\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\AutoReimport
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Commandlets
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Dialogs
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\DragAndDrop
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Features
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Kismet2
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Layers
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Localization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Settings
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Tests
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd\Public\Toolkits
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\UnrealEd
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEd
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\BspMode\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\BspMode
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\DirectoryWatcher\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\DirectoryWatcher
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Documentation\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Documentation
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Projects\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Projects\Public\Interfaces
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Projects
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SandboxFile\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\SandboxFile
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\EditorStyle\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\EditorStyle\Public\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\EditorStyle\Public\Interfaces
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\EditorStyle
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\EditorStyle
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\SourceControl\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\SourceControl\Public\Tests
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\SourceControl
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEdMessages\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEdMessages\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\UnrealEdMessages
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UnrealEdMessages
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\GameplayDebugger\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\GameplayDebugger
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\GameplayDebugger
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\BlueprintGraph\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\BlueprintGraph\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\BlueprintGraph
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\BlueprintGraph
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public\Android
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public\Apple
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public\GenericPlatform
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public\HTML5
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public\Interfaces
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public\Linux
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP\Public\Windows
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Online\HTTP
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\UnrealAudio\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\UnrealAudio
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\FunctionalTesting\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\FunctionalTesting\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\FunctionalTesting
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\FunctionalTesting
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\AutomationController\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\AutomationController\Public\Interfaces
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\AutomationController
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\AutomationController
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Internationalization\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Internationalization\Public\Serialization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Internationalization
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\AudioEditor\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\AudioEditor\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\AudioEditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\AudioEditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\LevelEditor\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\LevelEditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\Settings\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\Settings
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UserFeedback\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\UserFeedback
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\IntroTutorials\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\IntroTutorials
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\IntroTutorials
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\HeadMountedDisplay\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\HeadMountedDisplay
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\HeadMountedDisplay
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\VREditor\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\VREditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\VREditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Landscape\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Landscape\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Landscape
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Landscape
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\PropertyEditor\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\PropertyEditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\ActorPickerMode\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\ActorPickerMode
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\SceneDepthPickerMode\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\SceneDepthPickerMode
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\DetailCustomizations\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\DetailCustomizations\Public\Customizations
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\DetailCustomizations
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\ClassViewer\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\ClassViewer
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\ClassViewer
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\GraphEditor\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\GraphEditor\Public\KismetNodes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\GraphEditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\GraphEditor
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\ContentBrowser\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\ContentBrowser
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\ContentBrowser
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Windows\XAudio2\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Windows\XAudio2
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\AudioMixer\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Windows\AudioMixerXAudio2
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\Windows\UnrealAudioXAudio2
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\CollectionManager\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\CollectionManager
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\AddContentDialog\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\AddContentDialog
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\AddContentDialog
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\MeshUtilities\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Developer\MeshUtilities
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Kismet\Classes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Kismet\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Kismet\Public\Nodes
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Kismet\Public\Profiler
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Kismet\Public\WorkflowOrientedApp
+/I D:\Downloads\UnrealEngine-4.15\Engine\Intermediate\Build\Win64\UE4Editor\Inc\Kismet
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Editor\Kismet
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\NetworkReplayStreaming\NetworkReplayStreaming\Public
+/I D:\Downloads\UnrealEngine-4.15\Engine\Source\Runtime\NetworkReplayStreaming\NetworkReplayStreaming
+/I "D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Intermediate\Build\Win64\UE4Editor\Development\VoronoiDiagram"
+/Yc"D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Intermediate\Build\Win64\UE4Editor\Development\VoronoiDiagram\PCH.VoronoiDiagram.h"
+/Fp"D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Intermediate\Build\Win64\UE4Editor\Development\VoronoiDiagram\PCH.VoronoiDiagram.h.pch"
+"D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Intermediate\Build\Win64\UE4Editor\Development\VoronoiDiagram\PCH.VoronoiDiagram.cpp"
+/Fo"D:\Unreal Projects\MPHorso\Plugins\VoronoiDiagram\Intermediate\Build\Win64\UE4Editor\Development\VoronoiDiagram\PCH.VoronoiDiagram.h.obj"
+/TP
+/GR-
+/W4
