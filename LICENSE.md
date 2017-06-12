@@ -21,8 +21,8 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Unreal® is a trademark or registered trademark of Epic Games, Inc. in the United States of America and elsewhere
-Unreal® Engine, Copyright 1998 – 2014, Epic Games, Inc. All rights reserved.
+UnrealÂ® is a trademark or registered trademark of Epic Games, Inc. in the United States of America and elsewhere
+UnrealÂ® Engine, Copyright 1998 â€“ 2017, Epic Games, Inc. All rights reserved.
 
 VoronoiDiagram Copyright (c) afuzzyllama 2015
 	( https://github.com/afuzzyllama/VoronoiDiagramUE4 )
