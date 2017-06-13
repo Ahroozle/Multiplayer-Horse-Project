@@ -3,6 +3,8 @@
 #include "MPHorso.h"
 #include "ProceduralMapTypes.h"
 
+#include "ANLFacadeLib.h"
+
 #include "Kismet/KismetMathLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -13,39 +15,36 @@
 
 FRandomStream UWorldGenFuncLib::RandStream;
 
-void UWorldGenFuncLib::SetCellAttribute(UPARAM(Ref) TArray<FWorldCell>& Cells, int CellIndex, FName AttributeName, float AttributeValue)
+FColor UWorldGenFuncLib::BiomeColors[(int)EBiomeType::MAX] =
 {
-	//Cells[CellIndex].EnvironmentAttributes.Add(AttributeName, AttributeValue);
-}
+	FColor(0, 0, 0, 0),			//BIOME_HOLE = 0
 
-void UWorldGenFuncLib::FloodFillCells(int StartCellInd,
-									  const TArray<FWorldCell>& Cells,
-									  const TFunction<bool(const FWorldCell&)>& Pred,
-									  TArray<int>& OutFloodFillInds,
-									  bool IncludeStartCellInd)
-{
-	//int currInd = 0;
-	//if (IncludeStartCellInd)
-	//{
-	//	OutFloodFillInds.AddUnique(StartCellInd);
-	//	++currInd;
-	//}
+	FColor(153, 102, 51),		//BIOME_GROUND
 
-	//for (auto &currNeigh : Cells[StartCellInd].Neighbors)
-	//{
-	//	if (Pred(Cells[currNeigh]))
-	//		OutFloodFillInds.AddUnique(currNeigh);
-	//}
+	FColor(51, 102, 153),		//BIOME_WATER
+	FColor(0, 153, 204),		//BIOME_HANGINGWATER
 
-	//for (; currInd < OutFloodFillInds.Num(); ++currInd)
-	//{
-	//	for (auto &currNeigh : Cells[OutFloodFillInds[currInd]].Neighbors)
-	//	{
-	//		if (Pred(Cells[currNeigh]))
-	//			OutFloodFillInds.AddUnique(currNeigh);
-	//	}
-	//}
-}
+	FColor(39, 118, 165),		//BIOME_RIVERWATER
+
+
+	FColor(47, 102, 102),		//BIOME_MARSH
+	FColor(153, 255, 255),		//BIOME_ICE
+	FColor(255, 255, 255),		//BIOME_SNOW
+	FColor(187, 187, 170),		//BIOME_TUNDRA
+	FColor(136, 136, 136),		//BIOME_BARE
+	FColor(85, 85, 85),			//BIOME_SCORCHED
+	FColor(153, 170, 119),		//BIOME_TAIGA
+	FColor(136, 153, 119),		//BIOME_SHRUBLAND
+	FColor(201, 210, 155),		//BIOME_TEMP_DESERT
+	FColor(68, 136, 85),		//BIOME_TEMP_RAINFOREST
+	FColor(103, 148, 89),		//BIOME_TEMP_DECID_FOREST
+	FColor(136, 170, 85),		//BIOME_GRASSLAND
+	FColor(51, 119, 85),		//BIOME_TROP_RAINFOREST
+	FColor(85, 153, 68),		//BIOME_TROP_SEASONAL_FOREST
+	FColor(210, 185, 139)		//BIOME_SUBTROP_DESERT
+
+
+};
 
 
 void UWorldShapeFunction::DetermineShape(FIntVector Size, UPARAM(Ref) TMap<int, FWorldCell>& InOutWorldCells)
@@ -91,71 +90,49 @@ void AWorldContinent::Build(FIntVector MapSize, int NumSamplingPoints, bool IsDe
 
 	Annotate();
 
+	{
+		// outputting debug images
+
+		TArray<FColor> CurrColorData;
+
+		// elevations
+		for (auto &currCell : WorldCells)
+		{
+			float Elev = currCell.Value.EnvironmentData.Elevation;
+			currCell.Value.ShapeData->Color = FLinearColor(Elev, Elev, Elev).ToFColor(true);
+		}
+		FVoronoiDiagramHelper::GenerateColorArray(Voronoi, CurrColorData);
+		UStaticFuncLib::ExportToBitmap(CurrColorData, "TestElevations", ContinentSize.X, ContinentSize.Y);
+
+		// moistures
+		for (auto &currCell : WorldCells)
+		{
+			float Mois = currCell.Value.EnvironmentData.Moisture;
+			currCell.Value.ShapeData->Color = FLinearColor(Mois, Mois, Mois).ToFColor(true);
+		}
+		FVoronoiDiagramHelper::GenerateColorArray(Voronoi, CurrColorData);
+		UStaticFuncLib::ExportToBitmap(CurrColorData, "TestMoistures", ContinentSize.X, ContinentSize.Y);
+
+		// biomes
+		for (auto &currCell : WorldCells)
+		{
+			currCell.Value.ShapeData->Color = UWorldGenFuncLib::GetBiomeColor(currCell.Value.Biome);
+		}
+		FVoronoiDiagramHelper::GenerateColorArray(Voronoi, CurrColorData);
+		UStaticFuncLib::ExportToBitmap(CurrColorData, "TestBiomes", ContinentSize.X, ContinentSize.Y);
+
+		UStaticFuncLib::Print("Done", true);
+	}
+
 	///*
 	//	TODO : 
 	//		Need to make passes for:
-	//			-Elevation
-	//			-Moisture
 	//			-(Possibly "Magic" attr for testing and since Hanging Lakes should have extra differentiation from Normal Lakes?)
-
+	//
 	//		Missing things include:
-	//			-River data (basically a lot of edges going downward from elevations)
 	//			-Road data (either follow Amit's method or make my own, I guess. Splines will definitely be useful, though.)
-
-
-	//		It might also benefit me to change save data into:
-	//			-Island World Positions
-	//			-Their data in the form of FColor images
-	//			-Player deltas (maybe just update their images whenever players change something?)
-
-	//		if I save their data in an image format I could possibly also get away with doing
-	//		world updates via image manipulation algorithms, which iirc are usually pretty well-
-	//		optimized by this point in time.
-
-	//		I also might chunk the islands "traditionally" instead of on a per-cell or per-several-cells
-	//		basis due to the abrupt shift back into a tiled mindset.
-
-	//		Also AWorldGenerator::Rasterize miiiight be obsolete after this so I might have to
-	//		get rid of it.
 	//*/
 
-
-	//{
-	//	TArray<FColor> BiomeCols;
-	//	for (auto &currPx : Biomes)
-	//	{
-	//		int ind = currPx - 1;
-	//		if (ind >= 0)
-	//			BiomeCols.Add(BiomeMap.GetDefaultObject()->BiomeList.GetDefaultObject()->Biomes[ind].BiomeColor);
-	//		else
-	//			BiomeCols.Add(FColor::Black);
-	//	}
-	//	UStaticFuncLib::ExportToBitmap(BiomeCols, "TestBiomes", MapSize.X, MapSize.Y);
-
-	//	TArray<FColor> RegionCols;
-	//	for (auto &currPx : Regions)
-	//	{
-	//		float pxrat = float(currPx) / Regions.Num();
-	//		RegionCols.Add(FLinearColor(pxrat, pxrat, pxrat).ToFColor(true));
-	//	}
-	//	UStaticFuncLib::ExportToBitmap(RegionCols, "TestRegions", MapSize.X, MapSize.Y);
-
-	//	for (auto &curr : Attributes)
-	//	{
-	//		TArray<FColor> currAttrCols;
-
-	//		for (auto &currPx : curr.Value)
-	//		{
-	//			//UStaticFuncLib::Print(FString::SanitizeFloat(currPx), true);
-	//			float InRange = FMath::GetMappedRangeValueClamped({ -1,1 }, { 0,1 }, currPx);
-	//			currAttrCols.Add(FLinearColor(InRange, InRange, InRange).ToFColor(false));
-	//		}
-
-	//		UStaticFuncLib::ExportToBitmap(currAttrCols, "Test" + curr.Key.ToString(), MapSize.X, MapSize.Y);
-	//	}
-	//}
-
-	//UStaticFuncLib::Print("Done", true);
 }
 
 void AWorldContinent::ConstructVoronoi(int SamplingPoints)
@@ -167,7 +144,7 @@ void AWorldContinent::ConstructVoronoi(int SamplingPoints)
 	TArray<FIntPoint> Points;
 
 	while (--SamplingPoints >= 0)
-		Points.Add(FIntPoint(WorldRand.RandRange(1, ContinentSize.X - 1), WorldRand.RandRange(1, ContinentSize.Y - 1)));
+		Points.AddUnique(FIntPoint(WorldRand.RandRange(1, ContinentSize.X - 1), WorldRand.RandRange(1, ContinentSize.Y - 1)));
 
 	Voronoi->AddPoints(Points);
 	Voronoi->GenerateSites(2);
@@ -180,20 +157,24 @@ void AWorldContinent::ConstructVoronoi(int SamplingPoints)
 		FWorldCell NewCell;
 		NewCell.ShapeData = &currSite.Value;
 
-		FWorldCell& NewFinalized = WorldCells.Add(currSite.Key, MoveTemp(NewCell));
+		WorldCells.Add(currSite.Key, MoveTemp(NewCell));
 
 		if (currSite.Value.bIsCorner)
 			CornerInds.Add(currSite.Value.Index);
 		else if (currSite.Value.bIsEdge)
 			EdgeInds.Add(currSite.Value.Index);
+	}
 
-		for (auto &currEdge : NewFinalized.ShapeData->Edges)
+	for (auto &currCellPair : WorldCells)
+	{
+		FWorldCell& currCell = currCellPair.Value;
+		for (auto &currEdge : currCell.ShapeData->Edges)
 		{
 			VertsToNeighborVerts.FindOrAdd(currEdge.LeftEndPoint).AddUnique(currEdge.RightEndPoint);
 			VertsToNeighborVerts.FindOrAdd(currEdge.RightEndPoint).AddUnique(currEdge.LeftEndPoint);
 
-			VertsToNeighborCells.FindOrAdd(currEdge.LeftEndPoint).AddUnique(&NewFinalized);
-			VertsToNeighborCells.FindOrAdd(currEdge.RightEndPoint).AddUnique(&NewFinalized);
+			VertsToNeighborCells.FindOrAdd(currEdge.LeftEndPoint).AddUnique(&currCell);
+			VertsToNeighborCells.FindOrAdd(currEdge.RightEndPoint).AddUnique(&currCell);
 		}
 	}
 
@@ -235,6 +216,10 @@ void AWorldContinent::Annotate()
 
 	// Biome Pass
 	DetermineBiomes();
+
+
+	// all of this stuff past this line
+	// is under revision.
 
 	// Continent Naming Pass
 	NameContinent();
@@ -345,33 +330,10 @@ void AWorldContinent::ShapeIsland()
 
 void AWorldContinent::AssignElevations()
 {
-	// marks all of the edges of the island
-	for (auto &currPoint : PointGraph)
-	{
-		bool HasGround = false;
-		bool HasHole = false;
-		for (auto *currCell : currPoint.NeighborCells)
-		{
-			currPoint.Biome = FMath::Max(currPoint.Biome, currCell->Biome);
-
-			if (currCell->Biome == EBiomeType::BIOME_GROUND)
-				HasGround = true;
-			if (currCell->Biome == EBiomeType::BIOME_HOLE)
-				HasHole = true;
-
-			if (HasGround && HasHole)
-			{
-				currPoint.IsIslandEdge = true;
-				break;
-			}
-		}
-	}
-
-
 	// follows assignCornerElevations() and redistributeElevations()
 	// a la https://github.com/amitp/mapgen2/blob/master/Map.as
 
-	TArray</*int*/FGraphPoint*> queue;
+	TArray<FGraphPoint*> queue;
 	const float ElevEpsilon = 0.01f;
 
 	TArray<FGraphPoint*> LandPoints;
@@ -455,8 +417,6 @@ void AWorldContinent::AssignElevations()
 
 void AWorldContinent::GenerateRivers()
 {
-	// TODO : IMPL
-
 	// constructing the downslopes from preexisting elevation data
 	FGraphPoint* LowestNeighbor;
 	for (auto &currVert : PointGraph)
@@ -477,6 +437,8 @@ void AWorldContinent::GenerateRivers()
 
 			if (LowestNeighbor != &currVert)
 				currVert.DownslopePoint = LowestNeighbor;
+
+			
 		}
 	}
 
@@ -486,17 +448,28 @@ void AWorldContinent::GenerateRivers()
 	PointGraph.Sort([](const FGraphPoint& a, const FGraphPoint& b) {return a.EnvData.Elevation > b.EnvData.Elevation; });
 	TArray<FGraphPoint*> SortedPoints;
 	for (auto &curr : PointGraph)
-		SortedPoints.Add(&curr);
+	{
+		if(nullptr != curr.DownslopePoint)
+			SortedPoints.Add(&curr);
+	}
+
+	if (SortedPoints.Num() < 1)
+	{
+		UStaticFuncLib::Print("AWorldContinent::GenerateRivers: No valid downslopes found! "
+							  "Did something go awry with the shape function?", true);
+		return; // return before any exceptions or infinite loops can happen
+	}
 
 	int NumRivers = int((ContinentSize.GetMax() / 2) * RiverCoefficient);
 	for (int currRiver = 0; currRiver < NumRivers; ++currRiver)
 	{
 		FGraphPoint* currChoice = SortedPoints[UWorldGenFuncLib::GetWorldRandom().RandRange(0, SortedPoints.Num() - 1)];
-		while(nullptr == currChoice->DownslopePoint)
-			currChoice = SortedPoints[UWorldGenFuncLib::GetWorldRandom().RandRange(0, SortedPoints.Num() - 1)];
+		//while(nullptr == currChoice->DownslopePoint)
+		//	currChoice = SortedPoints[UWorldGenFuncLib::GetWorldRandom().RandRange(0, SortedPoints.Num() - 1)];
 
 		while (currChoice->DownslopePoint != nullptr)
 		{
+			currChoice->Biome = EBiomeType::BIOME_RIVERWATER;
 			FVector4 NewEdge(currChoice->Point, currChoice->DownslopePoint->Point);
 			Rivers.FindOrAdd(NewEdge) += 1;
 
@@ -507,12 +480,88 @@ void AWorldContinent::GenerateRivers()
 
 void AWorldContinent::AssignMoisture()
 {
-	// TODO : IMPL
+	TArray<FGraphPoint*> queue;
+
+	TArray<FGraphPoint*> LandPoints;
+
+	for (auto &curr : PointGraph)
+	{
+		if (curr.Biome == EBiomeType::BIOME_RIVERWATER) // if it's a river
+		{
+			curr.EnvData.Moisture = FMath::Min(3.0f, 0.2f * Rivers.FindRef(FVector4(curr.Point, curr.DownslopePoint->Point)));
+			queue.Add(&curr);
+		}
+		else if (curr.Biome == EBiomeType::BIOME_WATER || curr.Biome == EBiomeType::BIOME_HANGINGWATER) // if it's a lake
+		{
+			curr.EnvData.Moisture = 1.0f;
+			queue.Add(&curr);
+		}
+		else // otherwise
+		{
+			curr.EnvData.Moisture = 0.0f;
+
+			if (curr.Biome == EBiomeType::BIOME_GROUND)
+				LandPoints.Add(&curr);
+		}
+	}
+
+	while (queue.Num())
+	{
+		FGraphPoint* curr = queue[0];
+		queue.RemoveAt(0);
+
+		for (auto &currNeigh : curr->NeighborVerts)
+		{
+			FGraphPoint dummy;
+			dummy.Point = currNeigh;
+			FGraphPoint* neighborPoint = PointGraph.Find(dummy);
+
+			float NewMoist = curr->EnvData.Moisture * MoisturePersistence;
+
+			if (NewMoist > neighborPoint->EnvData.Moisture)
+			{
+				neighborPoint->EnvData.Moisture = NewMoist;
+				queue.Add(neighborPoint);
+			}
+		}
+	}
+
+
+	// redistribution
+
+	LandPoints.Sort([](FGraphPoint& a, FGraphPoint& b) { return a.EnvData.Moisture < b.EnvData.Moisture; });
+
+	for (int currInd = 0; currInd < LandPoints.Num(); ++currInd)
+		LandPoints[currInd]->EnvData.Moisture = currInd / (LandPoints.Num() - 1);
+
+
+	// Setting polygon moistures
+
+	TArray<FWorldCell*> RelevantCells;
+	for (auto *currVert : LandPoints)
+	{
+		for (auto *currCell : currVert->NeighborCells)
+		{
+			if (currCell->Biome != EBiomeType::BIOME_HOLE)
+			{
+				currCell->EnvironmentData.Moisture += currVert->EnvData.Moisture;
+				RelevantCells.Add(currCell);
+			}
+		}
+	}
+
+	for (auto *currCell : RelevantCells)
+		currCell->EnvironmentData.Moisture /= currCell->ShapeData->Vertices.Num();
+
 }
 
 void AWorldContinent::DetermineBiomes()
 {
-	// TODO : IMPL
+	for (auto &currCellInd : NonHoleIndices)
+	{
+		FWorldCell& currCell = WorldCells[currCellInd];
+		currCell.Biome = BiomeMap.GetDefaultObject()->DetermineBiome(currCell.Biome, currCell.EnvironmentData);
+	}
 }
 
 void AWorldContinent::NameContinent()
@@ -593,6 +642,29 @@ void AWorldGenerator::Build(FName WorldTypeToBuild, int InitialRandSeed)
 	*/
 
 	UWorldGenFuncLib::InitializeWorldRandom(InitialRandSeed);
+
+	FWorldType* Chosen = WorldTypes.Find(WorldTypeToBuild);
+
+	if (nullptr != Chosen)
+	{
+		FActorSpawnParameters params;
+		params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		AWorldContinent* CurrentSpawned;
+		for (FWorldContinentPacket &currContinent : Chosen->ContinentsToSpawn)
+		{
+			CurrentSpawned = GetWorld()->SpawnActor<AWorldContinent>(currContinent.Continent,
+				FVector::ZeroVector,
+				FRotator::ZeroRotator,
+				params);
+
+			CurrentSpawned->Build(currContinent.BoxDimensions, currContinent.NumSamplingPoints, currContinent.IsDead);
+		}
+	}
+	else
+		UStaticFuncLib::Print("AWorldGenerator::Build: WorldType \'" +
+							  WorldTypeToBuild.ToString() + 
+							  "\' Wasn't in the WorldTypes map! Building was not completed successfully.", true);
 
 	//FWorldType* ChosenWorldType = WorldTypes.Find(WorldTypeToBuild);
 

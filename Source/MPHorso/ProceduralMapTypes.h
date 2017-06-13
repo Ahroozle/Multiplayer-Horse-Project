@@ -47,24 +47,52 @@ struct FEnvironmentData
 UENUM(BlueprintType)
 enum class EBiomeType : uint8
 {
-	BIOME_HOLE = 0			UMETA(DisplayName = "Hole/No Biome"),
+	BIOME_HOLE = 0						UMETA(DisplayName = "Hole/No Biome"),
 
-	BIOME_GROUND			UMETA(DisplayName = "Ground"),
+	BIOME_GROUND						UMETA(DisplayName = "Ground"),
 
-	BIOME_WATER				UMETA(DisplayName = "Normal Lake"),
-	BIOME_HANGINGWATER		UMETA(DisplayName = "Hanging Lake")
+	BIOME_WATER							UMETA(DisplayName = "Normal Lake"),
+	BIOME_HANGINGWATER					UMETA(DisplayName = "Hanging Lake"),
+
+	BIOME_RIVERWATER					UMETA(Hidden),
+
+
+	// TODO : Determine *actual* biomes. These current ones are ripped straight
+	//		  from Amit's model and probably don't align with gameplay purposes
+	//		  I want fulfilled, so I'll have to change these sometime.
+
+	BIOME_MARSH							UMETA(DisplayName = "Marshland"),
+	BIOME_ICE							UMETA(DisplayName = "Ice"),
+	BIOME_SNOW							UMETA(DisplayName = "Snow"),
+	BIOME_TUNDRA						UMETA(DisplayName = "Tundra"),
+	BIOME_BARE							UMETA(DisplayName = "Bare Land"),
+	BIOME_SCORCHED						UMETA(DisplayName = "Scorched Land"),
+	BIOME_TAIGA							UMETA(DisplayName = "Taiga"),
+	BIOME_SHRUBLAND						UMETA(DisplayName = "Shrubland"),
+	BIOME_TEMP_DESERT					UMETA(DisplayName = "Temperate Desert"),
+	BIOME_TEMP_RAINFOREST				UMETA(DisplayName = "Temperate Rainforest"),
+	BIOME_TEMP_DECID_FOREST				UMETA(DisplayName = "Temperate Deciduous Forest"),
+	BIOME_GRASSLAND						UMETA(DisplayName = "Grassland"),
+	BIOME_TROP_RAINFOREST				UMETA(DisplayName = "Tropical Rainforest"),
+	BIOME_TROP_SEASONAL_FOREST			UMETA(DisplayName = "Tropical Seasonal Forest"),
+	BIOME_SUBTROP_DESERT				UMETA(DisplayName = "Subtropical Desert"),
+
+
+
+
+	MAX						UMETA(Hidden)
 };
 
-UCLASS(BlueprintType)
-class MPHORSO_API UBiomeMap : public UObject
+UCLASS(Blueprintable)
+class MPHORSO_API UWorldBiomeMap : public UObject
 {
 	GENERATED_BODY()
 
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Procedural World Generation|Biome Map")
-		EBiomeType DetermineBiome(const FEnvironmentData& Cell);
-	EBiomeType DetermineBiome_Implementation(const FEnvironmentData& Cell) { return EBiomeType::BIOME_HOLE; }
+		EBiomeType DetermineBiome(const EBiomeType& PreBiome, const FEnvironmentData& EnvironmentData);
+	EBiomeType DetermineBiome_Implementation(const EBiomeType& PreBiome, const FEnvironmentData& EnvironmentData) { return EBiomeType::BIOME_HOLE; }
 
 private:
 
@@ -123,7 +151,6 @@ struct FGraphPoint
 
 	EBiomeType Biome = EBiomeType::BIOME_HOLE;
 
-	bool IsIslandEdge = false;
 	bool IsBorder = false;
 
 	bool operator==(const FGraphPoint& o) const { return o.Point == Point; }
@@ -149,19 +176,15 @@ public:
 		static const FRandomStream& GetWorldRandom() { return RandStream; }
 
 	UFUNCTION(BlueprintCallable)
-		static void SetCellAttribute(UPARAM(Ref) TArray<FWorldCell>& Cells, int CellIndex, FName AttributeName, float AttributeValue);
+		static const FColor& GetBiomeColor(EBiomeType Biome) { return BiomeColors[(int)Biome]; }
 
 	// C++ Functions
-
-	static void FloodFillCells(int StartCellInd,
-							   const TArray<FWorldCell>& Cells,
-							   const TFunction<bool(const FWorldCell&)>& Pred,
-							   TArray<int>& OutFloodFillInds,
-							   bool IncludeStartCellInd);
 
 private:
 
 	static FRandomStream RandStream;
+
+	static FColor BiomeColors[(int)EBiomeType::MAX];
 
 };
 
@@ -327,21 +350,34 @@ public:
 		float RiverCoefficient = 1;
 
 
-	// The world generation done to determine this continent's attributes.
-	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Continent")
-		TArray<TSubclassOf<UWorldGenPass>> Passes;
+	// AssignMoisture() Variables
+
+	/*
+		Modifies how far moisture carries out from
+		lakes and rivers.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Continent", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+		float MoisturePersistence = 0.9f;
+
+
+	// DetermineBiomes() Variables
 
 	// The biome map this continent uses when determining its biomes.
 	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Continent")
-		TSubclassOf<UBiomeMap> BiomeMap;
+		TSubclassOf<UWorldBiomeMap> BiomeMap;
 
+
+
+	// The world generation done to determine this continent's attributes.
+	UPROPERTY(EditDefaultsOnly, Category = "Procedural World Generation|World Continent")
+		TArray<TSubclassOf<UWorldGenPass>> Passes;
 
 	// The created regions
 	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Continent")
 		TArray<FWorldRegion> RegionDetails;
 
 	// Whether or not this continent is "dead" (receives no updates)
-	UPROPERTY(BlueprintReadWrite, Category = "Procedural World Generation|World Continent")
+	UPROPERTY(BlueprintReadOnly, Category = "Procedural World Generation|World Continent")
 		bool Dead = false;
 
 
@@ -453,35 +489,6 @@ private:
 /*
 	TODO (+ writing downs):
 
-		Switch terrain generation system over from simplex-based to voronoi-based
-
-		Delaunay
-			|
-			V
-		Voronoi (Cut edges to bounds)
-			|
-			V
-		Determine Holes VS Water
-			|
-			V
-		Assign Elevations
-			|
-			V
-		Create Rivers
-			|
-			V
-		(Special Attr Passes?)
-			|
-			V
-		Create Biomes
-			|
-			V
-		Create Places
-			|
-			V
-		Create Roads
-
-
 		Elevation stuff:
 			Whatever terrain elevation stuff on top, and then cones on the bottoms
 			of cells depending on their elevation?
@@ -490,23 +497,15 @@ private:
 			build roads that more gradually interpolate between their elevations
 			so that they're the easier path to take?
 
-		Store Voronoi Cells as the chunks?
+		CHUNK LODS
+			PolyVox has *some* chunk LOD stuff in its documentation
+			(i.e. http://www.volumesoffun.com/polyvox/documentation/0.2.1/manual/LevelOfDetail.html )
+			but I'll definitely say I'm not sure about how to handle LODs with this new
+			stuff, if I even have to deal with them at all (although my gut tells me that duh, of
+			*course* LODs need to be implemented)
 
-		Worldgen takes arbitrary passes and such.
-		void Pass::Apply(InOut WorldMap&)
-
-		Built-in "inherent" tile attributes as specific variables, and then
-		Map<FName, Variant> for special-er attributes?
-
-		FIND A WAY TO MAKE CHUNK LODS
-			either downsample the map or maybe even slowly
-			transition between more and more just the voronoi shape?
-
-			ofc will need to destroy/create mesh sections more ofte
-			than just updating them to do any good
-
-			Thought:
-				Highest LOD level: Marching cubes of the cell.
+			Thoughts:
+				Highest LOD level: Polyvox-constructed mesh
 				Lowest LOD level: Polygonal prism of the cell.
 
 				and then of course somehow deduce the in-between
@@ -516,46 +515,62 @@ private:
 				between LODs.
 
 		CHUNK PAGING
-			Maybe just temporary paging for the duration of a game
-			so that save files can *also* take up as little space
-			as possible at the downside of some longer loading
-			times for worlds since it has to regenerate them?
+			PolyVox also has stuff for this but I'll need to
+			understand it more in-depth to make effective use
+			of it. I'm not really finding anything on the
+			very-much-finite volumes I'm eventually going to
+			be dealing with, although considering dealing with
+			infinite volumes is considered a much bigger mess
+			to deal with I'm hoping that it won't be a long
+			struggle.
 
 		SAVE FILES
-			Obviously want to just make a save file that only
-			contains the world seed (and maybe settings but only 
-			if I make them user-changeable) and various deltas
-			(probably chunk-space).
+			Small change in plan to files, after checking
+			how terraria does their save files
+			( http://seancode.com/terrafirma/world.html )
+			things like RLE were brought to mind, as well
+			as it being a much-needed reminder that it's
+			fine to splurge on a bit of memory considering
+			a lot of what we do is usually only a few
+			bytes at worst.
 
-		ENVIRONMENT DAEMONS
-			What if I put real-time environmental changes on
-			separate worker threads with eternal loops until
-			broken by some condition (either game ending or
-			otherwise).
-
-			... I could even link them to stop working or
-			completely change how they work depending on
-			in-game stuff. Imagine killing the god of
-			wind and all the wind literally stops.
-			*Now you're thinking with incredibly bad
-			ideas* :^)
+			Of course, save file structure is still being
+			thought out.
 
 		AREA DIFFICULTIES
-			Should difficulty of area be based on ease of
-			accessibility of said area, or should ease of
-			accessibility be based on a pre-determined
-			difficulty for the type of area?
+			Originally I was debating whether difficulty
+			of an area should be governed by accessibility
+			or whether it should be the other way around.
+			More recently and very much in part to the
+			changes upon changes to how world generation
+			is supposed to work, I'm more or less leaning
+			toward the former option, as later on in
+			development I can see accessibility being very,
+			*very* easily manipulated through things like
+			NPC placements for generating world histories
+			and the like, so I could easily see it continuing
+			to lean into the first option.
 
 		WORLD UPDATES
-			maybe also have LODs for terrain updates?
-			i.e. the more relevant a given chunk/cell
-			is to the player the more frequently and/or
-			granularly it's updated, while further out,
-			less-relevant chunks are updated less
-			frequently and as a wholesale chunk value
-			which then the details are 'caught up'
-			with when the chunk becomes relevant sometime
-			in the future.
+			Updates to terrain are still being considered
+			and mulled over, but I'm thinking that I could
+			move such a process over to a separate thread.
+			Since the end model is that basically every
+			continent is updating more or less independently,
+			Things hopefully shouldn't get too complicated.
+
+			Another idea could be that rather than updating
+			continents via a background system that the player
+			neither sees nor meaningfully interacts with, there
+			could instead be a much slower "deity" of sorts
+			which moves about the continent, updating areas
+			in a given sequence and breaking behavior in case of
+			certain events transpiring. I'm personally leaning
+			more toward a system like this because I believe that
+			it would both A) give the player a "justification" as
+			for the environment updating so slowly, and B) reaping
+			the benefits of such slowness, i.e. having ample time
+			to save the world "between" updates.
 
 		WORLD EVENTS
 			i.e. things like meteor impacts and stuff.
