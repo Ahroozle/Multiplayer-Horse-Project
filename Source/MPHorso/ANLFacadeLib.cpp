@@ -6,6 +6,19 @@
 
 using namespace anl;
 
+/*
+					IT'S THE
+
+	/---------------------------------------\
+	|                                       |
+	|       qUEstIONaBlE CAsTING CLUb       |
+	|                                       |
+	\---------------------------------------/
+					   | |
+					   | |
+					   | |
+			 \/\\/\/\///\\//\\/\//\/\
+*/
 
 // ARE YOU READY FOR SOME ~*~**~***INTENSE CHEATARONI***~**~*~
 CInstructionIndex ToCIns(FANL_II& FromBP) { return *((CInstructionIndex*)(&FromBP)); } // this can only end in tears
@@ -13,6 +26,9 @@ CInstructionIndex ToCIns(FANL_II& FromBP) { return *((CInstructionIndex*)(&FromB
 // remember kids don't try this at home
 // try it at a friend's home instead
 FANL_II ToBPIns(CInstructionIndex insind) { return { *((uint32*)&insind) }; }
+
+FANL_VMOut ToBPOut(SVMOutput vmo) { return { (float)(vmo.outfloat_), *((FLinearColor*)(&vmo.outrgba_)) }; }
+
 
 // One-And-Dones
 
@@ -242,6 +258,113 @@ FANL_II UANLFacadeLib::ANL_LastIndex()	{ return ToBPIns(Kernel.lastIndex()); }
 
 void UANLFacadeLib::ANL_SetVar(FString name, float val) { Kernel.setVar(TCHAR_TO_ANSI(*name), val); }
 FANL_II UANLFacadeLib::ANL_GetVar(FString name) { return ToBPIns(Kernel.getVar(TCHAR_TO_ANSI(*name))); }
+
+
+FANL_VMOut UANLFacadeLib::ANL_Evaluate(int Dimension, float x, float y, float z, float w, float u, float v)
+{
+	CCoordinate coord;
+	switch (Dimension)
+	{
+	case 1:
+	case 2:
+		coord.set(x, y);
+		break;
+
+	case 3:
+		coord.set(x, y, z);
+		break;
+		
+	case 4:
+		coord.set(x, y, z, w);
+		break;
+
+	default:
+		coord.set(x, y, z, w, u, v);
+		break;
+	}
+
+	return ToBPOut(VM.evaluate(coord));
+}
+
+FANL_VMOut UANLFacadeLib::ANL_EvaluateAt(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II index)
+{
+	CCoordinate coord;
+	switch (Dimension)
+	{
+	case 1:
+	case 2:
+		coord.set(x, y);
+		break;
+
+	case 3:
+		coord.set(x, y, z);
+		break;
+
+	case 4:
+		coord.set(x, y, z, w);
+		break;
+
+	default:
+		coord.set(x, y, z, w, u, v);
+		break;
+	}
+
+	return ToBPOut(VM.evaluateAt(coord, ToCIns(index)));
+}
+
+
+float UANLFacadeLib::ANL_EvaluateScalar(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx)
+{
+	double ret;
+	switch (Dimension)
+	{
+	case 1:
+	case 2:
+		ret = VM.evaluateScalar(x, y, ToCIns(idx));
+		break;
+
+	case 3:
+		ret = VM.evaluateScalar(x, y, z, ToCIns(idx));
+		break;
+
+	case 4:
+		ret = VM.evaluateScalar(x, y, z, w, ToCIns(idx));
+		break;
+
+	default:
+		ret = VM.evaluateScalar(x, y, z, w, u, v, ToCIns(idx));
+		break;
+	}
+
+	return (float)ret;
+}
+
+
+FLinearColor UANLFacadeLib::ANL_EvaluateColor(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx)
+{
+	SRGBA ret;
+	switch (Dimension)
+	{
+	case 1:
+	case 2:
+		ret = VM.evaluateColor(x, y, ToCIns(idx));
+		break;
+
+	case 3:
+		ret = VM.evaluateColor(x, y, z, ToCIns(idx));
+		break;
+
+	case 4:
+		ret = VM.evaluateColor(x, y, z, w, ToCIns(idx));
+		break;
+
+	default:
+		ret = VM.evaluateColor(x, y, z, w, u, v, ToCIns(idx));
+		break;
+	}
+
+	return *((FLinearColor*)(&ret));
+}
 
 
 // BP-friendly CInstructionIndex ops

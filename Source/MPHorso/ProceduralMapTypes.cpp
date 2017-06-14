@@ -234,6 +234,11 @@ void AWorldContinent::Annotate()
 	/*
 		Note: tips on placing cities ( https://www.youtube.com/watch?v=3PWWtqfwacQ ) ?
 			this could also be useful https://www.youtube.com/watch?v=ThNeIT7aceI
+
+			this ( https://www.rockpapershotgun.com/tag/generation-next/ ) could also
+			be useful for generating things in the cracks like "lore" from the times
+			before the destruction, or at least something to think about for other
+			later projects
 	*/
 	PlaceStructures();
 

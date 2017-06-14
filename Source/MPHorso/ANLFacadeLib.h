@@ -24,6 +24,19 @@ struct FANL_II
 	uint32 instructionIndex;
 };
 
+USTRUCT(BlueprintType, meta = (DisplayName = "ANL VM Output"))
+struct FANL_VMOut
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(BlueprintReadOnly)
+		float ResultFloat;
+
+	UPROPERTY(BlueprintReadOnly)
+		FLinearColor ResultColor;
+
+};
+
 
 UCLASS()
 class MPHORSO_API UANLFacadeLib : public UObject
@@ -321,6 +334,21 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_GetVar(FString name);
+
+
+	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+		FANL_VMOut ANL_Evaluate(int Dimension, float x, float y, float z, float w, float u, float v);
+
+	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+		FANL_VMOut ANL_EvaluateAt(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II index);
+
+
+	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+		float ANL_EvaluateScalar(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx);
+
+
+	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+		FLinearColor ANL_EvaluateColor(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx);
 
 
 	// Blueprint-friendly overloads for all of the possible CInstructionIndex operations.
