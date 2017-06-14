@@ -233,6 +233,7 @@ void AWorldContinent::Annotate()
 	// Structure Pass/es
 	/*
 		Note: tips on placing cities ( https://www.youtube.com/watch?v=3PWWtqfwacQ ) ?
+			this could also be useful https://www.youtube.com/watch?v=ThNeIT7aceI
 	*/
 	PlaceStructures();
 
