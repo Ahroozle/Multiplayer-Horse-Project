@@ -37,6 +37,40 @@ struct FANL_VMOut
 
 };
 
+UENUM(BlueprintType)
+enum class EANL_Axis : uint8
+{
+	X,Y,Z,W,U,V
+};
+
+UENUM(BlueprintType)
+enum class EANL_InterpType : uint8
+{
+	INTERP_NONE			UMETA(DisplayName = "No Interpolation"),
+	INTERP_LINEAR		UMETA(DisplayName = "Linear Interpolation"),
+	INTERP_HERMITE		UMETA(DisplayName = "Hermite Interpolation"),
+	INTERP_QUINTIC		UMETA(DisplayName = "Quintic Interpolation")
+};
+
+// NOTE: iirc looking at the code greatestaxis/leastaxis are actually backwards in the enum
+//		 so maybe I should switch them in this one?
+UENUM(BlueprintType)
+enum class EANL_DistType : uint8
+{
+	DISTANCE_EUCLID			UMETA(DisplayName = "Euclidean Distance"),
+	DISTANCE_MANHATTAN		UMETA(DisplayName = "Manhattan Distance"),
+	DISTANCE_LEASTAXIS		UMETA(DisplayName = "Least-Axis Distance"),
+	DISTANCE_GREATESTAXIS	UMETA(DisplayName = "Greatest-Axis Distance")
+};
+
+UENUM(BlueprintType)
+enum class EANL_BasisType : uint8
+{
+	BASIS_VALUE			UMETA(DisplayName = "Value Basis"),
+	BASIS_GRADIENT		UMETA(DisplayName = "Gradient Basis"),
+	BASIS_SIMPLEX		UMETA(DisplayName = "Simplex Basis")
+};
+
 
 UCLASS()
 class MPHORSO_API UANLFacadeLib : public UObject
@@ -137,22 +171,7 @@ public:
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_ScaleX(FANL_II src, FANL_II scale);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_ScaleY(FANL_II src, FANL_II scale);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_ScaleZ(FANL_II src, FANL_II scale);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_ScaleW(FANL_II src, FANL_II scale);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_ScaleU(FANL_II src, FANL_II scale);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_ScaleV(FANL_II src, FANL_II scale);
+		static FANL_II ANL_Scale(EANL_Axis Axis, FANL_II src, FANL_II scale);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
@@ -160,22 +179,7 @@ public:
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_TranslateX(FANL_II src, FANL_II trans);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_TranslateY(FANL_II src, FANL_II trans);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_TranslateZ(FANL_II src, FANL_II trans);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_TranslateW(FANL_II src, FANL_II trans);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_TranslateU(FANL_II src, FANL_II trans);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_TranslateV(FANL_II src, FANL_II trans);
+		static FANL_II ANL_Translate(EANL_Axis Axis, FANL_II src, FANL_II trans);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
@@ -232,41 +236,11 @@ public:
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_X();
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_Y();
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_Z();
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_W();
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_U();
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_V();
+		static FANL_II ANL_Axis(EANL_Axis Axis);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_dX(FANL_II src, FANL_II spacing);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_dY(FANL_II src, FANL_II spacing);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_dZ(FANL_II src, FANL_II spacing);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_dW(FANL_II src, FANL_II spacing);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_dU(FANL_II src, FANL_II spacing);
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_dV(FANL_II src, FANL_II spacing);
+		static FANL_II dAxis(EANL_Axis Axis, FANL_II src, FANL_II spacing);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
@@ -300,26 +274,29 @@ public:
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_SimpleFractalLayer(int basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
+		static FANL_II ANL_SimpleFractalLayer(EANL_BasisType basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
 											  bool rot = true, float angle = 0.5f, float ax = 0, float ay = 0, float az = 1);
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_SimpleRidgedLayer(int basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
+		static FANL_II ANL_SimpleRidgedLayer(EANL_BasisType basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
 											 bool rot = true, float angle = 0.5f, float ax = 0, float ay = 0, float az = 1);
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_SimpleBillowLayer(int basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
+		static FANL_II ANL_SimpleBillowLayer(EANL_BasisType basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
 											 bool rot = true, float angle = 0.5f, float ax = 0, float ay = 0, float az = 1);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_Simple_fBm(int basisType, int interpType, int octaves, float freq, int seed, bool rot = true);
+		static FANL_II ANL_Simple_fBm(EANL_BasisType basisType, EANL_InterpType interpType,
+									  int octaves, float freq, int seed, bool rot = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_SimpleRidgedMultifractal(int basisType, int interpType, int octaves, float freq, int seed, bool rot = true);
+		static FANL_II ANL_SimpleRidgedMultifractal(EANL_BasisType basisType, EANL_InterpType interpType,
+													int octaves, float freq, int seed, bool rot = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II ANL_SimpleBillow(int basisType, int interpType, int octaves, float freq, int seed, bool rot = true);
+		static FANL_II ANL_SimpleBillow(EANL_BasisType basisType, EANL_InterpType interpType,
+										int octaves, float freq, int seed, bool rot = true);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")

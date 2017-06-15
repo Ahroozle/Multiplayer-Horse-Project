@@ -91,12 +91,36 @@ FANL_II UANLFacadeLib::ANL_ScaleDomain(FANL_II srcIndex, FANL_II scale)
 }
 
 
-FANL_II UANLFacadeLib::ANL_ScaleX(FANL_II src, FANL_II scale)	{ return ToBPIns(Kernel.scaleX(ToCIns(src), ToCIns(scale))); }
-FANL_II UANLFacadeLib::ANL_ScaleY(FANL_II src, FANL_II scale)	{ return ToBPIns(Kernel.scaleY(ToCIns(src), ToCIns(scale))); }
-FANL_II UANLFacadeLib::ANL_ScaleZ(FANL_II src, FANL_II scale)	{ return ToBPIns(Kernel.scaleZ(ToCIns(src), ToCIns(scale))); }
-FANL_II UANLFacadeLib::ANL_ScaleW(FANL_II src, FANL_II scale)	{ return ToBPIns(Kernel.scaleW(ToCIns(src), ToCIns(scale))); }
-FANL_II UANLFacadeLib::ANL_ScaleU(FANL_II src, FANL_II scale)	{ return ToBPIns(Kernel.scaleU(ToCIns(src), ToCIns(scale))); }
-FANL_II UANLFacadeLib::ANL_ScaleV(FANL_II src, FANL_II scale)	{ return ToBPIns(Kernel.scaleV(ToCIns(src), ToCIns(scale))); }
+FANL_II UANLFacadeLib::ANL_Scale(EANL_Axis Axis, FANL_II src, FANL_II scale)
+{
+	switch (Axis)
+	{
+	default:
+	case EANL_Axis::X:
+		return ToBPIns(Kernel.scaleX(ToCIns(src), ToCIns(scale)));
+		break;
+
+	case EANL_Axis::Y:
+		return ToBPIns(Kernel.scaleY(ToCIns(src), ToCIns(scale)));
+		break;
+
+	case EANL_Axis::Z:
+		return ToBPIns(Kernel.scaleZ(ToCIns(src), ToCIns(scale)));
+		break;
+
+	case EANL_Axis::W:
+		return ToBPIns(Kernel.scaleW(ToCIns(src), ToCIns(scale)));
+		break;
+
+	case EANL_Axis::U:
+		return ToBPIns(Kernel.scaleU(ToCIns(src), ToCIns(scale)));
+		break;
+
+	case EANL_Axis::V:
+		return ToBPIns(Kernel.scaleV(ToCIns(src), ToCIns(scale)));
+		break;
+	}
+}
 
 
 FANL_II UANLFacadeLib::ANL_TranslateDomain(FANL_II srcIndex, FANL_II trans)
@@ -105,12 +129,36 @@ FANL_II UANLFacadeLib::ANL_TranslateDomain(FANL_II srcIndex, FANL_II trans)
 }
 
 
-FANL_II UANLFacadeLib::ANL_TranslateX(FANL_II src, FANL_II trans)	{ return ToBPIns(Kernel.translateX(ToCIns(src), ToCIns(trans))); }
-FANL_II UANLFacadeLib::ANL_TranslateY(FANL_II src, FANL_II trans)	{ return ToBPIns(Kernel.translateY(ToCIns(src), ToCIns(trans))); }
-FANL_II UANLFacadeLib::ANL_TranslateZ(FANL_II src, FANL_II trans)	{ return ToBPIns(Kernel.translateZ(ToCIns(src), ToCIns(trans))); }
-FANL_II UANLFacadeLib::ANL_TranslateW(FANL_II src, FANL_II trans)	{ return ToBPIns(Kernel.translateW(ToCIns(src), ToCIns(trans))); }
-FANL_II UANLFacadeLib::ANL_TranslateU(FANL_II src, FANL_II trans)	{ return ToBPIns(Kernel.translateU(ToCIns(src), ToCIns(trans))); }
-FANL_II UANLFacadeLib::ANL_TranslateV(FANL_II src, FANL_II trans)	{ return ToBPIns(Kernel.translateV(ToCIns(src), ToCIns(trans))); }
+FANL_II UANLFacadeLib::ANL_Translate(EANL_Axis Axis, FANL_II src, FANL_II trans)
+{
+	switch (Axis)
+	{
+	default:
+	case EANL_Axis::X:
+		return ToBPIns(Kernel.translateX(ToCIns(src), ToCIns(trans)));
+		break;
+
+	case EANL_Axis::Y:
+		return ToBPIns(Kernel.translateY(ToCIns(src), ToCIns(trans)));
+		break;
+
+	case EANL_Axis::Z:
+		return ToBPIns(Kernel.translateZ(ToCIns(src), ToCIns(trans)));
+		break;
+
+	case EANL_Axis::W:
+		return ToBPIns(Kernel.translateW(ToCIns(src), ToCIns(trans)));
+		break;
+
+	case EANL_Axis::U:
+		return ToBPIns(Kernel.translateU(ToCIns(src), ToCIns(trans)));
+		break;
+
+	case EANL_Axis::V:
+		return ToBPIns(Kernel.translateV(ToCIns(src), ToCIns(trans)));
+		break;
+	}
+}
 
 
 FANL_II UANLFacadeLib::ANL_RotateRomain(FANL_II src, FANL_II angle, FANL_II ax, FANL_II ay, FANL_II az)
@@ -168,20 +216,68 @@ FANL_II UANLFacadeLib::ANL_Tiers(FANL_II src, FANL_II numTiers)			{ return ToBPI
 FANL_II UANLFacadeLib::ANL_SmoothTiers(FANL_II src, FANL_II numTiers)	{ return ToBPIns(Kernel.smoothTiers(ToCIns(src), ToCIns(numTiers))); }
 
 
-FANL_II UANLFacadeLib::ANL_X()	{ return ToBPIns(Kernel.x()); }
-FANL_II UANLFacadeLib::ANL_Y()	{ return ToBPIns(Kernel.y()); }
-FANL_II UANLFacadeLib::ANL_Z()	{ return ToBPIns(Kernel.z()); }
-FANL_II UANLFacadeLib::ANL_W()	{ return ToBPIns(Kernel.w()); }
-FANL_II UANLFacadeLib::ANL_U()	{ return ToBPIns(Kernel.u()); }
-FANL_II UANLFacadeLib::ANL_V()	{ return ToBPIns(Kernel.v()); }
+FANL_II UANLFacadeLib::ANL_Axis(EANL_Axis Axis)
+{
+	switch (Axis)
+	{
+	default:
+	case EANL_Axis::X:
+		return ToBPIns(Kernel.x());
+		break;
+
+	case EANL_Axis::Y:
+		return ToBPIns(Kernel.y());
+		break;
+
+	case EANL_Axis::Z:
+		return ToBPIns(Kernel.z());
+		break;
+
+	case EANL_Axis::W:
+		return ToBPIns(Kernel.w());
+		break;
+
+	case EANL_Axis::U:
+		return ToBPIns(Kernel.u());
+		break;
+
+	case EANL_Axis::V:
+		return ToBPIns(Kernel.v());
+		break;
+	}
+}
 
 
-FANL_II UANLFacadeLib::ANL_dX(FANL_II src, FANL_II spacing)	{ return ToBPIns(Kernel.dx(ToCIns(src), ToCIns(spacing))); }
-FANL_II UANLFacadeLib::ANL_dY(FANL_II src, FANL_II spacing)	{ return ToBPIns(Kernel.dy(ToCIns(src), ToCIns(spacing))); }
-FANL_II UANLFacadeLib::ANL_dZ(FANL_II src, FANL_II spacing)	{ return ToBPIns(Kernel.dz(ToCIns(src), ToCIns(spacing))); }
-FANL_II UANLFacadeLib::ANL_dW(FANL_II src, FANL_II spacing)	{ return ToBPIns(Kernel.dw(ToCIns(src), ToCIns(spacing))); }
-FANL_II UANLFacadeLib::ANL_dU(FANL_II src, FANL_II spacing)	{ return ToBPIns(Kernel.du(ToCIns(src), ToCIns(spacing))); }
-FANL_II UANLFacadeLib::ANL_dV(FANL_II src, FANL_II spacing)	{ return ToBPIns(Kernel.dv(ToCIns(src), ToCIns(spacing))); }
+FANL_II UANLFacadeLib::dAxis(EANL_Axis Axis, FANL_II src, FANL_II spacing)
+{
+	switch (Axis)
+	{
+	default:
+	case EANL_Axis::X:
+		return ToBPIns(Kernel.dx(ToCIns(src), ToCIns(spacing)));
+		break;
+
+	case EANL_Axis::Y:
+		return ToBPIns(Kernel.dy(ToCIns(src), ToCIns(spacing)));
+		break;
+
+	case EANL_Axis::Z:
+		return ToBPIns(Kernel.dz(ToCIns(src), ToCIns(spacing)));
+		break;
+
+	case EANL_Axis::W:
+		return ToBPIns(Kernel.dw(ToCIns(src), ToCIns(spacing)));
+		break;
+
+	case EANL_Axis::U:
+		return ToBPIns(Kernel.du(ToCIns(src), ToCIns(spacing)));
+		break;
+
+	case EANL_Axis::V:
+		return ToBPIns(Kernel.dv(ToCIns(src), ToCIns(spacing)));
+		break;
+	}
+}
 
 
 FANL_II UANLFacadeLib::ANL_Sigmoid(FANL_II src)		{ return ToBPIns(Kernel.sigmoid(ToCIns(src))); }
@@ -214,21 +310,21 @@ FANL_II UANLFacadeLib::ANL_ScaleOffset(FANL_II src, float scale, float offset)
 }
 
 
-FANL_II UANLFacadeLib::ANL_SimpleFractalLayer(int basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
+FANL_II UANLFacadeLib::ANL_SimpleFractalLayer(EANL_BasisType basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
 											  bool rot, float angle, float ax, float ay, float az)
 {
 	return ToBPIns(Kernel.simpleFractalLayer((uint32)basisType, ToCIns(interpTypeIndex), layerScale, layerFreq, (uint32)seed,
 											 rot, angle, ax, ay, az));
 }
 
-FANL_II UANLFacadeLib::ANL_SimpleRidgedLayer(int basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
+FANL_II UANLFacadeLib::ANL_SimpleRidgedLayer(EANL_BasisType basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
 											 bool rot, float angle, float ax, float ay, float az)
 {
 	return ToBPIns(Kernel.simpleRidgedLayer((uint32)basisType, ToCIns(interpTypeIndex), layerScale, layerFreq, (uint32)seed,
 											rot, angle, ax, ay, az));
 }
 
-FANL_II UANLFacadeLib::ANL_SimpleBillowLayer(int basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
+FANL_II UANLFacadeLib::ANL_SimpleBillowLayer(EANL_BasisType basisType, FANL_II interpTypeIndex, float layerScale, float layerFreq, int seed,
 											 bool rot, float angle, float ax, float ay, float az)
 {
 	return ToBPIns(Kernel.simpleBillowLayer((uint32)basisType, ToCIns(interpTypeIndex), layerScale, layerFreq, (uint32)seed,
@@ -236,17 +332,17 @@ FANL_II UANLFacadeLib::ANL_SimpleBillowLayer(int basisType, FANL_II interpTypeIn
 }
 
 
-FANL_II UANLFacadeLib::ANL_Simple_fBm(int basisType, int interpType, int octaves, float freq, int seed, bool rot)
+FANL_II UANLFacadeLib::ANL_Simple_fBm(EANL_BasisType basisType, EANL_InterpType interpType, int octaves, float freq, int seed, bool rot)
 {
 	return ToBPIns(Kernel.simplefBm((uint32)basisType, (uint32)interpType, (uint32)octaves, freq, (uint32)seed, rot));
 }
 
-FANL_II UANLFacadeLib::ANL_SimpleRidgedMultifractal(int basisType, int interpType, int octaves, float freq, int seed, bool rot)
+FANL_II UANLFacadeLib::ANL_SimpleRidgedMultifractal(EANL_BasisType basisType, EANL_InterpType interpType, int octaves, float freq, int seed, bool rot)
 {
 	return ToBPIns(Kernel.simpleRidgedMultifractal((uint32)basisType, (uint32)interpType, (uint32)octaves, freq, (uint32)seed, rot));
 }
 
-FANL_II UANLFacadeLib::ANL_SimpleBillow(int basisType, int interpType, int octaves, float freq, int seed, bool rot)
+FANL_II UANLFacadeLib::ANL_SimpleBillow(EANL_BasisType basisType, EANL_InterpType interpType, int octaves, float freq, int seed, bool rot)
 {
 	return ToBPIns(Kernel.simpleBillow((uint32)basisType, (uint32)interpType, (uint32)octaves, freq, (uint32)seed, rot));
 }
