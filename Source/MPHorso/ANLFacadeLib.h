@@ -115,10 +115,10 @@ public:
 		static FANL_II ANL_GetConstant_RootTwo();
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Constant(float val);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Seed(int val);
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
@@ -135,141 +135,141 @@ public:
 										 FANL_II d1, FANL_II d2, FANL_II d3, FANL_II d4,
 										 FANL_II dist, FANL_II seed);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Add(FANL_II s1Index, FANL_II s2Index);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Subtract(FANL_II s1, FANL_II s2);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Multiply(FANL_II s1Index, FANL_II s2Index);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Divide(FANL_II s1, FANL_II s2);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Maximum(FANL_II s1Index, FANL_II s2Index);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Minimum(FANL_II s1Index, FANL_II s2Index);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Abs(FANL_II sIndex);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Pow(FANL_II s1, FANL_II s2);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Bias(FANL_II s1, FANL_II s2);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Gain(FANL_II s1, FANL_II s2);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_ScaleDomain(FANL_II srcIndex, FANL_II scale);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Scale(EANL_Axis Axis, FANL_II src, FANL_II scale);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_TranslateDomain(FANL_II srcIndex, FANL_II trans);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Translate(EANL_Axis Axis, FANL_II src, FANL_II trans);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_RotateRomain(FANL_II src, FANL_II angle, FANL_II ax, FANL_II ay, FANL_II az);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_AddSequence(FANL_II baseIndex, int number, int stride);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_MultiplySequence(FANL_II baseIndex, int number, int stride);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_MaxSequence(FANL_II baseIndex, int number, int stride);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_MinSequence(FANL_II baseIndex, int number, int stride);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Blend(FANL_II low, FANL_II high, FANL_II control);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Select(FANL_II low, FANL_II high, FANL_II control, FANL_II threshold, FANL_II falloff);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Clamp(FANL_II src, FANL_II low, FANL_II high);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Cos(FANL_II src);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Sin(FANL_II src);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Tan(FANL_II src);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Acos(FANL_II src);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Asin(FANL_II src);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Atan(FANL_II src);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Tiers(FANL_II src, FANL_II numTiers);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_SmoothTiers(FANL_II src, FANL_II numTiers);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Axis(EANL_Axis Axis);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		static FANL_II dAxis(EANL_Axis Axis, FANL_II src, FANL_II spacing);
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
+		static FANL_II ANL_dAxis(EANL_Axis Axis, FANL_II src, FANL_II spacing);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Sigmoid(FANL_II src);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_SigmoidDetailed(FANL_II src, FANL_II center, FANL_II ramp);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Radial();
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_HexTile(FANL_II seed);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_HexBump();
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_Color(FLinearColor c);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_CombineRGBA(FANL_II r, FANL_II g, FANL_II b, FANL_II a);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_ScaleOffset(FANL_II src, float scale, float offset);
 
 
@@ -299,33 +299,33 @@ public:
 										int octaves, float freq, int seed, bool rot = true);
 
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_NextIndex();
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_LastIndex();
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
 		static void ANL_SetVar(FString name, float val);
 
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+	UFUNCTION(BlueprintPure, Category = "ANL Simplification Facade Function Library")
 		static FANL_II ANL_GetVar(FString name);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		FANL_VMOut ANL_Evaluate(int Dimension, float x, float y, float z, float w, float u, float v);
+		static FANL_VMOut ANL_Evaluate(int Dimension, float x, float y, float z, float w, float u, float v);
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		FANL_VMOut ANL_EvaluateAt(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II index);
-
-
-	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		float ANL_EvaluateScalar(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx);
+		static FANL_VMOut ANL_EvaluateAt(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II index);
 
 
 	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
-		FLinearColor ANL_EvaluateColor(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx);
+		static float ANL_EvaluateScalar(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx);
+
+
+	UFUNCTION(BlueprintCallable, Category = "ANL Simplification Facade Function Library")
+		static FLinearColor ANL_EvaluateColor(int Dimension, float x, float y, float z, float w, float u, float v, FANL_II idx);
 
 
 	// Blueprint-friendly overloads for all of the possible CInstructionIndex operations.

@@ -248,7 +248,7 @@ FANL_II UANLFacadeLib::ANL_Axis(EANL_Axis Axis)
 }
 
 
-FANL_II UANLFacadeLib::dAxis(EANL_Axis Axis, FANL_II src, FANL_II spacing)
+FANL_II UANLFacadeLib::ANL_dAxis(EANL_Axis Axis, FANL_II src, FANL_II spacing)
 {
 	switch (Axis)
 	{

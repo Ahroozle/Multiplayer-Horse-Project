@@ -3,9 +3,11 @@
 #pragma once
 
 #include "GameFramework/Actor.h"
-#include "Components/SplineComponent.h"
-#include "Components/SplineMeshComponent.h"
-#include "Components/ChildActorComponent.h"
+//#include "Components/SplineComponent.h"
+//#include "Components/SplineMeshComponent.h"
+//#include "Components/ChildActorComponent.h"
+
+#include "Kismet/KismetMathLibrary.h"
 
 #include "VoronoiDiagram.h"
 
@@ -134,14 +136,14 @@ struct FGraphPoint
 {
 	GENERATED_USTRUCT_BODY();
 
-	// the vertex of the graph this struct represents
-	FVector2D Point;
+	FVector2D Pt;
 
 	// neighboring points in the graph
-	TArray<FVector2D> NeighborVerts;
+	//TArray<FIntPoint> NeighborVerts;
+	TArray<int> NeighborVertIndices;
 
 	// neighboring cells in the graph
-	TArray<FWorldCell*> NeighborCells;
+	TArray<int> NeighborCellIndices;
 
 	// the point downslope from this one, for river calcs
 	FGraphPoint* DownslopePoint = nullptr;
@@ -151,11 +153,12 @@ struct FGraphPoint
 
 	EBiomeType Biome = EBiomeType::BIOME_HOLE;
 
-	bool IsBorder = false;
+	bool IsBorder = false; // Is this corner part of a map-bordering cell?
+	bool IsIslandEdge = false; // Is this corner adjacent to a hole in the map and is therefore an edge of the island?
 
-	bool operator==(const FGraphPoint& o) const { return o.Point == Point; }
+	bool operator==(const FGraphPoint& o) const { return &o == this; }
 
-	friend FORCEINLINE uint32 GetTypeHash(const FGraphPoint& o) { return GetTypeHash(o.Point); }
+	//friend FORCEINLINE uint32 GetTypeHash(const FGraphPoint& o) { return GetTypeHash(o.Pt); }
 };
 
 /*
@@ -289,31 +292,52 @@ public:
 	TSharedPtr<FVoronoiDiagram> Voronoi;
 
 	// Size, kept for internal use during generation
-	FIntVector ContinentSize;
+	UPROPERTY()
+		FIntVector ContinentSize;
 
-	TMap<int, FWorldCell> WorldCells;
+	UPROPERTY()
+		TMap<int, FWorldCell> WorldCells;
 
 	// Indices of non-hole cells in WorldCells
-	TArray<int> NonHoleIndices;
+	UPROPERTY()
+		TArray<int> NonHoleIndices;
 
 	// indices into worldcells which represent corners and edges.
-	TArray<int> CornerInds;
-	TArray<int> EdgeInds;
+	UPROPERTY()
+		TArray<int> CornerInds;
+	UPROPERTY()
+		TArray<int> EdgeInds;
 
 	// Collection of more specific per-point data
-	TSet<FGraphPoint> PointGraph;
+	UPROPERTY()
+		TArray<FGraphPoint> PointGraph;
+
+	// Map of all created rivers
+	UPROPERTY()
+		TMap<int, float> Rivers;
+
 
 	/*
-		Map of all created rivers
-
-		NOTE: the FVector4 key is actually
-		two FVector2Ds mashed into one
-		struct.
-
-		tl;dr I'm just too lazy to overload
-		GetTypeHash for FEdges right now lol
+		Raster data
 	*/
-	TMap<FVector4, float> Rivers;
+	UPROPERTY()
+		TArray<uint8> Elevations;
+	UPROPERTY()
+		TArray<uint8> Moistures;
+	UPROPERTY()
+		TArray<EBiomeType> Biomes;
+
+	// Whether or not a space is occupied by a river.
+	UPROPERTY()
+		TArray<bool> RiversRasterized;
+
+	// carries the moistures until rasterization for them finishes.
+	UPROPERTY()
+		TArray<float> TempMoistures;
+
+	// Indices into WorldCells that tie raster data to cell data
+	UPROPERTY()
+		TArray<int> CellInds;
 
 
 	// ShapeIsland() Variables
@@ -349,15 +373,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Continent", meta = (ClampMin = "0.0", ClampMax = "5.0"))
 		float RiverCoefficient = 1;
 
+	// Modifies the width of rivers during rasterization.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Continent", meta = (ClampMin = "1.0"))
+		float RiverWidthMultiplier = 1.0f;
+
 
 	// AssignMoisture() Variables
 
-	/*
-		Modifies how far moisture carries out from
-		lakes and rivers.
-	*/
+	// Default moisture for any lakes that crop up during generation.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Continent", meta = (ClampMin = "0.0"))
+		float LakeMoisture = 1.0f;
+
+	// Defines how far moisture carries from its source.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Continent", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 		float MoisturePersistence = 0.9f;
+
+	/*
+		This determines how many smaller "buffers"
+		are used for the "bloom" effect that's run
+		on the moistures after the initial propagation.
+
+		This fills out areas around rivers more than the
+		normal passes would as a quick way to enlarge areas
+		of moisture.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Procedural World Generation|World Continent", meta = (ClampMin = "0.0", ClampMax = "3.0"))
+		int DownLayers = 3;
 
 
 	// DetermineBiomes() Variables
@@ -395,22 +436,24 @@ private:
 	*/
 	void ConstructVoronoi(int SamplingPoints);
 
-	void Annotate();
-		void ShapeIsland();
-		void AssignElevations();
-		void GenerateRivers();
-		void AssignMoisture();
-		void DetermineBiomes();
-		void NameContinent();
-		void DetermineRegions();
-		void NameRegions();
-		void PlaceStructures();
-		void NameStructures();
-		void GenerateRoads();
-
+	void ShapeIsland();
+	void AssignElevations();
+	void GenerateRivers();
 	void Rasterize();
-
+	void AssignMoisture();
+	void DetermineBiomes();
+	void NameContinent();
+	void DetermineRegions();
+	void NameRegions();
+	void PlaceStructures();
+	void NameStructures();
+	void GenerateRoads();
 	void Voxelize();
+
+
+	//void Annotate();
+
+
 };
 
 
