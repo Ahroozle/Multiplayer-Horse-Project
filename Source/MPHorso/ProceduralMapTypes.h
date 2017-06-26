@@ -421,7 +421,15 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Procedural World Generation|World Continent")
 		bool Dead = false;
 
+	// temporary variables, currently used for debugging
+	UPROPERTY(BlueprintReadOnly, Category = "Procedural World Generation|World Continent")
+		UTexture2D* BiomeTexture;
+	UPROPERTY(BlueprintReadOnly, Category = "Procedural World Generation|World Continent")
+		UTexture2D* ElevationTexture;
+	UPROPERTY(BlueprintReadOnly, Category = "Procedural World Generation|World Continent")
+		UTexture2D* MoistureTexture;
 
+	// Delegate called upon the continent completing generation.
 	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Procedural World Generation|World Continent")
 		FContinentBuildFinished BuildFinishedDelegate;
 
@@ -555,7 +563,7 @@ private:
 				LODS from these two extremes.
 
 				Also look up how to keep collision consistent
-				between LODs.
+				between LODs. Or at least some way to fake it rofl
 
 		CHUNK PAGING
 			PolyVox also has stuff for this but I'll need to
@@ -611,7 +619,7 @@ private:
 			certain events transpiring. I'm personally leaning
 			more toward a system like this because I believe that
 			it would both A) give the player a "justification" as
-			for the environment updating so slowly, and B) reaping
+			for the environment updating so slowly, and B) reap
 			the benefits of such slowness, i.e. having ample time
 			to save the world "between" updates.
 
@@ -642,6 +650,29 @@ private:
 			some kind of design principle behind it
 			that I'm not picking up that makes it
 			a genius move, who knows.
+
+			extra notes so far: Maybe something like
+			
+			(Some higher class, probably the world)
+				|
+				| contains [] of TSubclassOf<>
+				| and instantiates a random one whenever
+				| it whims (work out how the rands work)
+				|
+				V
+			class WorldEvent (intended abstract) : public UObject
+					method	void CalculateDestiny()
+						Determines all the intensive information
+						the event would need before it ever actually
+						needs to do it, easily able to be interleaved
+						between frames. As a result intended to be considered
+						an event by blueprints for usage
+					member	DestinyCalculatedNotify DestinyCalculatedDelegate
+						This event is intended to be fired off at the end
+						of CalculateDestiny() to notify any listening objects
+						that the event is now ready for deployment. Naturally
+						this is listened to by the higher class.
+
 
 		AI STUFF
 			Even though I really, *really* like thinking

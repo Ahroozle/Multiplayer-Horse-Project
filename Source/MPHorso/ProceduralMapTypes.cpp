@@ -135,7 +135,42 @@ void AWorldContinent::Build(FIntVector MapSize, int NumSamplingPoints, bool IsDe
 	UStaticFuncLib::ExportToBitmap(Mois, "TestMoistures", Voronoi->Bounds.Width(), Voronoi->Bounds.Height());
 	UStaticFuncLib::ExportToBitmap(Bios, "TestBiomes", Voronoi->Bounds.Width(), Voronoi->Bounds.Height());
 
+	BiomeTexture		=	UTexture2D::CreateTransient(Voronoi->Bounds.Width(),Voronoi->Bounds.Height());
+	ElevationTexture	=	UTexture2D::CreateTransient(Voronoi->Bounds.Width(),Voronoi->Bounds.Height());
+	MoistureTexture		=	UTexture2D::CreateTransient(Voronoi->Bounds.Width(),Voronoi->Bounds.Height());
+
+	//FColor* MipData = static_cast<FColor*>(GeneratedTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	FColor* BiomeData		= static_cast<FColor*>(BiomeTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	FColor* ElevationData	= static_cast<FColor*>(ElevationTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+	FColor* MoistureData	= static_cast<FColor*>(MoistureTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+
+	FMemory::Memcpy(BiomeData, Bios.GetData(), Bios.Num() * sizeof(FColor));
+	FMemory::Memcpy(ElevationData, Elvs.GetData(), Elvs.Num() * sizeof(FColor));
+	FMemory::Memcpy(MoistureData, Mois.GetData(), Mois.Num() * sizeof(FColor));
+
+	//for (int curr = 0; curr < Elvs.Num(); ++curr)
+	//{
+	//	FMemory::MemCopy()
+
+	//	Biome
+	//	ElevationData[0]
+	//}
+
+	BiomeTexture		->PlatformData->Mips[0].BulkData.Unlock();
+	ElevationTexture	->PlatformData->Mips[0].BulkData.Unlock();
+	MoistureTexture		->PlatformData->Mips[0].BulkData.Unlock();
+
+	BiomeTexture		->UpdateResource();
+	ElevationTexture	->UpdateResource();
+	MoistureTexture		->UpdateResource();
+
+
+	//GeneratedTexture->PlatformData->Mips[0].BulkData.Unlock();
+	//GeneratedTexture->UpdateResource();
+
 	UStaticFuncLib::Print("Done", true);
+
+	BuildFinishedDelegate.Broadcast();
 
 	/*
 		TODO : 
@@ -364,12 +399,28 @@ void AWorldContinent::ShapeIsland()
 	}
 	else
 		UStaticFuncLib::Print("AWorldContinent::ShapeIsland: No holes found! Did something go awry with the shape function?", true);
+
+	/*
+		TODO :
+			I'm considering making a shape tool that allows me to specify a shape for the island
+			to take.
+
+			as far as I can tell from a distance this should be relatively easy due to the tools
+			I already have at my disposal.
+
+			i.e. if you consider the canvas to be "negative" in the first place, and each shape
+			included to switch the sign at a current location, this means that all you have to do is
+			make sure the point is within any "positive" shape and outside of any "negative" shape
+			(excluding the canvas, of course). if anything I'm sure the hardest part of this will be
+			determining which shapes are negative and which are positive.
+	*/
 }
 
 void AWorldContinent::AssignElevations()
 {
 	// follows assignCornerElevations() and redistributeElevations()
 	// a la https://github.com/amitp/mapgen2/blob/master/Map.as
+
 
 	TQueue<FGraphPoint*> queue;
 
@@ -379,7 +430,7 @@ void AWorldContinent::AssignElevations()
 
 	for (auto &curr : PointGraph)
 	{
-		if (curr.IsBorder /*|| curr.IsIslandEdge*/)
+		if (curr.IsBorder)
 		{
 			curr.EnvData.Elevation = 0;
 			queue.Enqueue(&curr);
@@ -420,14 +471,10 @@ void AWorldContinent::AssignElevations()
 	// saved result of sqrt(ElevationScaleFactor) to cut ops from 2xSqrt per loop to 1xSqrt per loop
 	const float ElevScaleFactorRoot = FMath::Sqrt(ElevationScaleFactor);
 
-	//FString teststr;
-
 	float adjustedElev, currHeightRatio;
 	int currInd = 0;
 	for (auto *curr : LandPoints)
 	{
-		//teststr += FString::SanitizeFloat(curr->EnvData.Elevation) + "\n";
-
 		currHeightRatio = float(currInd) / (LandPoints.Num() - 1);
 
 		adjustedElev = FMath::Clamp(ElevScaleFactorRoot - (ElevScaleFactorRoot * FMath::Sqrt(1 - currHeightRatio)), 0.0f, 1.0f);
@@ -436,7 +483,6 @@ void AWorldContinent::AssignElevations()
 		++currInd;
 	}
 
-	//UStaticFuncLib::Print(teststr);
 
 	// Setting polygon elevations
 
@@ -451,6 +497,8 @@ void AWorldContinent::AssignElevations()
 				currCell->EnvironmentData.Elevation += currVert->EnvData.Elevation;
 				RelevantCells.AddUnique(currCell);
 			}
+			else
+				currCell->EnvironmentData.Elevation = 0;
 		}
 	}
 
