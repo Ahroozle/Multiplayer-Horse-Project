@@ -504,6 +504,14 @@ void AWorldContinent::AssignElevations()
 
 	for (auto *currCell : RelevantCells)
 		currCell->EnvironmentData.Elevation /= currCell->ShapeData->Vertices.Num();
+
+	/*
+		TODO :
+			there's a bug in here that causes elevations to inconsistently work or
+			not work between compilations. I'm not sure what causes this but hopefully
+			at some point I can get it fixed because trying to get the damn thing to
+			work is a massive pain sometimes.
+	*/
 }
 
 void AWorldContinent::GenerateRivers()
