@@ -26,10 +26,10 @@ public:
 		TSet<FName> OpenChannels;
 
 	UFUNCTION(BlueprintNativeEvent, Category = "MP Horso Player Controller")
-		void PassMessage(const FChatMessage& Msg);
-	virtual void PassMessage_Implementation(const FChatMessage& Msg);
+		void PassMessage(AMPHorsoPlayerController* Sender, const FString& Msg);
+	virtual void PassMessage_Implementation(AMPHorsoPlayerController* Sender, const FString& Msg);
 	
 	UFUNCTION(BlueprintNativeEvent, Category = "MP Horso Player Controller")
-		void PassToPersonalBubble(const FChatMessage& Msg);
-	void PassToPersonalBubble_Implementation(const FChatMessage& Msg);
+		void PassToPersonalBubble(const FString& Msg);
+	void PassToPersonalBubble_Implementation(const FString& Msg);
 };

@@ -19,7 +19,7 @@ public class MPHorso : ModuleRules
 
     public MPHorso(TargetInfo Target)
 	{
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ProceduralMeshComponent", "VoronoiDiagram" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "UMG", "Slate", "SlateCore", "ProceduralMeshComponent", "VoronoiDiagram" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

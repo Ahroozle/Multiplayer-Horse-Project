@@ -3,90 +3,163 @@
 #pragma once
 
 #include "Object.h"
+#include "Blueprint/UserWidget.h"
 #include "ChatTypes.generated.h"
 
+/*
+	TODO :
+		commands to create:
+			/me
+				'/me <text>' ==> '(Name) <text>'
+				third-person-ifies text, as well as italicizes.
 
-UENUM(BlueprintType)
-enum class EChatMessageType : uint8
-{
-	// User-created chat message
-	ChatMessageType_User		UMETA(DisplayName="User-Created Message"),
+			/p, /party, /team (or whatever)
+				'/p <text>'
+				limits receivers to party-only
+				( this may or may not get impl'd depending on whether or not parties become a thing.
+				not such a hot idea to steal *everything* from terraria :^) )
 
-	// System Message
-	ChatMessageType_Sys			UMETA(DisplayName="System Message"),
+			/players, /playing
+				displays list of all players currently present, client-side only of course.
 
-	// max
-	CHATMESSAGETYPE_MAX			UMETA(Hidden)
-};
+			/roll
+				'/roll' - ripped from terraria directly, rolls 1d100
+				'/roll <X>d<Y>' - rolls X amount of dice with Y sides and adds the results together
 
-USTRUCT(BlueprintType)
-struct FChatMessage
-{
-	GENERATED_USTRUCT_BODY();
+		also could be useful to impl some of these ( http://terraria.gamepedia.com/Server#List_of_console_commands )
+		or similar if the need ever arises, as well as make some simple administration functionalities like ops, bans,
+		kicks, etc.
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Messages")
-		FName Sender;
+		tags to create:
+			color, c
+				[c/<hex>:<text>] - colors <text> based on the provided <hex>
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Messages")
-		EChatMessageType MessageType = EChatMessageType::ChatMessageType_User;
+			emph, e
+				[e:<text>] - emphasizes <text>.
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Messages")
-		FName ChatChannel;
+			name, n
+				[n:<name>] - writes the text as a name. This includes their respective team/party color (if teams/parties are impl'd)
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Messages")
-		FString Message;
-};
+		also add support for nesting tags maybe?
 
-USTRUCT(BlueprintType)
-struct FChatCommand
-{
-	GENERATED_USTRUCT_BODY();
+*/
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Messages|Commands")
-		TSubclassOf<class UChatCommandArchetype> ClassPtr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Messages|Commands")
-		FString Parameters;
-};
-
-UCLASS(Blueprintable)
-class MPHORSO_API UChatCommandArchetype : public UObject
-{
-	GENERATED_BODY()
-
-public:
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Command Archetype")
-		TSet<FName> CommandNames; // holds all different acceptable ways to call the command
-
-	// The contents don't really get used in this so it's basically a special comment of sorts
-	// only Num() is called ever.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Command Archetype")
-		TArray<FString> ArgumentNames;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Command Archetype")
-		bool ShouldMakeSpeechBubble = true;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Command Archetype")
-		bool ShouldMakeMessage = true;
-
-	UFUNCTION(BlueprintNativeEvent, Category = "Chat Command Archetype")
-		bool Execute(class AMPHorsoPlayerController* Caller, const FString& Args, UPARAM(Ref) FChatMessage& InOutMessage, FString& FailReason);
-	bool Execute_Implementation(class AMPHorsoPlayerController* Caller, const FString& Args, UPARAM(Ref) FChatMessage& InOutMessage, FString& FailReason);
-};
-
-UCLASS(Blueprintable)
-class MPHORSO_API UChatEmoteArchetype : public UObject
+/*
+	Represents a collection of commands, but instead
+	of storing tangible objects it uses a function to
+	determine the effects of each.
+*/
+UCLASS(Blueprintable, abstract)
+class MPHORSO_API UChatCommandBlock : public UObject
 {
 	GENERATED_BODY()
 
 public:
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Emote Archetype")
-		TArray<FString> EmoteNames; // All the ways you can write this particular emote
+	/*
+		Applies command 'Cmd' called by 'Caller'.
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chat Emote Archetype")
-		class UTexture* Image;
+		returns:
+			retval: success
+			OutMsg: The modified message, if applicable. If this is empty, the message is never sent.
+			OutForBubble: The message that should be given to the player's bubble. If this is empty the bubble is never given the message.
+			Prop: Should this command's message propagate?
+	*/
+	UFUNCTION(BlueprintNativeEvent, Category = "Chat Command Block")
+		bool Apply(UObject* Caller, const FString& Cmd, FString& OutMsg, FString& OutForBubble, bool& Prop);
+	bool Apply_Implementation(UObject* Caller, const FString& Cmd, FString& OutMsg, FString& OutForBubble, bool& Prop) { return false; }
+};
+
+UCLASS(Blueprintable, abstract)
+class MPHORSO_API UChatMessageAnim : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Message Animation")
+		void EvaluateAtTime(float Time, const FWidgetTransform& CurrentTransform, FWidgetTransform& Result);
+	void EvaluateAtTime_Implementation(float Time, const FWidgetTransform& CurrentTransform, FWidgetTransform& Result) {}
+};
+
+UCLASS(Blueprintable, abstract)
+class MPHORSO_API UChatWord : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
+		UImage* AddImage(UTexture* Img);
+	UImage* AddImage_Implementation(UTexture* Img) { return nullptr; }
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
+		UTextBlock* AddText(const FString& Text);
+	UTextBlock* AddText_Implementation(const FString& Text) { return nullptr; }
+
+	/*
+		NOTE: the return is a dummy return,
+			  it's only here to make sure
+			  that the function registers
+			  as a function and not an
+			  event.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
+		bool SetOpacity(float NewOpacity);
+	bool SetOpacity_Implementation(float NewOpacity) { return false; }
+
+	/*
+		NOTE: the return is a dummy return,
+		it's only here to make sure
+		that the function registers
+		as a function and not an
+		event.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
+		bool AddAnimation(TSubclassOf<UChatMessageAnim> Anim);
+	bool AddAnimation_Implementation(TSubclassOf<UChatMessageAnim> Anim) { return false; }
+};
+
+USTRUCT(BlueprintType)
+struct FDeconstructedTagData
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(BlueprintReadWrite)
+		TArray<FName> Tags;
+	UPROPERTY(BlueprintReadWrite)
+		TArray<FString> TagParams;
+
+	UPROPERTY(BlueprintReadWrite)
+		FString Data;
+
+};
+
+/*
+	Represents a collection of tags but, just like
+	the UChatCommandBlock, stored as a function rather
+	than several objects.
+
+	Tag format follows the terraria format ( http://terraria.gamepedia.com/Chat#Tags ) currently for convenience
+
+	i.e.
+	[tag:text]
+	[tag/options:text]
+
+	or in deconstructed tag terms:
+	[tag/params:data]
+*/
+UCLASS(Blueprintable, abstract)
+class MPHORSO_API UChatTagBlock : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Chat Tag Block")
+		void Apply(UObject* Caller, const TArray<FDeconstructedTagData>& Message, TSubclassOf<UChatWord> WordClass, TArray<UUserWidget*>& ConstructedWords, bool PerLetterWords);
+	void Apply_Implementation(UObject* Caller, const TArray<FDeconstructedTagData>& Message, TSubclassOf<UChatWord> WordClass, TArray<UUserWidget*>& ConstructedWords, bool PerLetterWords) {}
+
 };
 
 UCLASS()
@@ -94,25 +167,19 @@ class MPHORSO_API UChatActionsLibrary : public UObject
 {
 	GENERATED_BODY()
 
-	static TArray<TSubclassOf<UChatCommandArchetype>> CommandArchetypes;
-	static TArray<TSubclassOf<UChatEmoteArchetype>> EmoteArchetypes;
-
-	static void PopulateCommandArchetypes();
-	static void PopulateEmoteArchetypes();
-
 public:
 
 	UFUNCTION()
-		static void TranslateMessage(const FString& InMessage, FChatMessage& OutMessage, FChatCommand& OutCommand);
+		static bool IsCommand(const FString& Msg) { return Msg.StartsWith("/"); }
 
 	UFUNCTION(BlueprintPure)
 		static void TimeAsString(FString& OutString);
 
-	UFUNCTION(BlueprintPure)
-		static void SplitStringWithEmotes(const FString& In, TArray<FString>& Out);
+	UFUNCTION()
+		static void ParseTags(const FString& InMessage, TArray<FDeconstructedTagData>& OutDeconstructed);
+	UFUNCTION(BlueprintCallable)
+		static void ApplyTags(UObject* Caller, const FString& Message, TArray<UUserWidget*>& ConstructedWords, bool PerLetterWords = true);
 
-	UFUNCTION(BlueprintPure)
-		static bool IsEmote(const FString& String, class UTexture*& OutEmoteImage);
-
+	UFUNCTION(BlueprintCallable)
+		static int Roll(int NumDie, int Sidedness);
 };
-

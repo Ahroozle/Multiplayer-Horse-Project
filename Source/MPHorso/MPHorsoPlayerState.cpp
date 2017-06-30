@@ -7,49 +7,55 @@
 
 #include "StaticFuncLib.h"
 
+#include "MPHorsoGameInstance.h"
+
 
 void AMPHorsoPlayerState::ServerChatSend_Implementation(AMPHorsoPlayerController* Sender, const FString& NewRawMessage)
 {
-	bool shouldBubble = true;
-	bool shouldMessage = true;
+	FString EndMessage;
+	FString BubbleMessage;
+	bool shouldPropagate = true; // TODO change to enum representing party or something?
 
-	FChatMessage Message;
-	FChatCommand Command;
+	UMPHorsoGameInstance* GameInst = UStaticFuncLib::RetrieveGameInstance(Sender);
 
-	UChatActionsLibrary::TranslateMessage(NewRawMessage, Message, Command);
-
-	if (nullptr != Sender)
-		Message.Sender = Sender->MyName;
-
-	if (nullptr != Command.ClassPtr/*->IsValidLowLevel()*/)
+	if (nullptr != GameInst)
 	{
-		shouldBubble = Command.ClassPtr.GetDefaultObject()->ShouldMakeSpeechBubble;
-		shouldMessage = Command.ClassPtr.GetDefaultObject()->ShouldMakeMessage;
-
-		FString FailedReason;
-		
-		bool CommandSucceeded = Command.ClassPtr.GetDefaultObject()->Execute(Sender, Command.Parameters, Message, FailedReason);
-
-		if (!CommandSucceeded)
+		if (UChatActionsLibrary::IsCommand(NewRawMessage))
 		{
-			// TODO : DISPLAY FAIL REASON SOMEHOW
-			UStaticFuncLib::Print("Command Failed! Reason: " + FailedReason, true);
+			if (!GameInst->ChatCommandBlock.GetDefaultObject()->Apply(Sender, NewRawMessage, EndMessage, BubbleMessage, shouldPropagate))
+			{
+				FString temp;
+				if (!NewRawMessage.Split(" ", &temp, nullptr))
+					temp = NewRawMessage;
 
-			if(Command.ClassPtr->GetName().Contains("_Invalid"))
-				UStaticFuncLib::Print("(Note: Did you make sure to add it to the appropriate MPHorsoGameInstanceBP array?)", true);
+				// failure case and stuff
+				EndMessage = "[c/ff0000: The command \'" + temp + "\' wasn't found.]";
+
+				shouldPropagate = false;
+			}
+		}
+		else
+		{
+			BubbleMessage = NewRawMessage;
+			EndMessage = "[n:" + Sender->MyName.ToString() + "] " + NewRawMessage;
 		}
 	}
 
-	if(nullptr != Sender && shouldBubble)
-		Sender->PassToPersonalBubble(Message);
+	if(!BubbleMessage.IsEmpty())
+		Sender->PassToPersonalBubble(BubbleMessage);
 
-	if (shouldMessage)
-		MulticastChatSend(Message);
+	if (!EndMessage.IsEmpty())
+	{
+		if (shouldPropagate)
+			MulticastChatSend(Sender, EndMessage);
+		else
+			ClientMessageSend(Sender, EndMessage);//Sender->PassMessage(EndMessage);
+	}
 }
 
 bool AMPHorsoPlayerState::ServerChatSend_Validate(AMPHorsoPlayerController* Sender, const FString& NewRawMessage) { return true; }
 
-void AMPHorsoPlayerState::MulticastChatSend_Implementation(const FChatMessage& NewMessage)
+void AMPHorsoPlayerState::MulticastChatSend_Implementation(AMPHorsoPlayerController* Sender, const FString& NewMessage)
 {
 
 	AMPHorsoPlayerController* currCon;
@@ -57,10 +63,18 @@ void AMPHorsoPlayerState::MulticastChatSend_Implementation(const FChatMessage& N
 	{
 		if (nullptr != (currCon = Cast<AMPHorsoPlayerController>(*iter)))
 		{
-			if (currCon->OpenChannels.Contains(NewMessage.ChatChannel))
-				currCon->PassMessage(NewMessage);
+			currCon->PassMessage(/*Sender*/currCon, NewMessage);
+			//if (currCon->OpenChannels.Contains(NewMessage.ChatChannel))
+			//	currCon->PassMessage(NewMessage);
 		}
 	}
 }
 
-bool AMPHorsoPlayerState::MulticastChatSend_Validate(const FChatMessage& NewMessage) { return true; }
+bool AMPHorsoPlayerState::MulticastChatSend_Validate(AMPHorsoPlayerController* Sender, const FString& NewMessage) { return true; }
+
+void AMPHorsoPlayerState::ClientMessageSend_Implementation(AMPHorsoPlayerController* Sender, const FString& NewMessage)
+{
+	Sender->PassMessage(Sender, NewMessage);
+}
+
+bool AMPHorsoPlayerState::ClientMessageSend_Validate(AMPHorsoPlayerController* Sender, const FString& NewMessage) { return true; }

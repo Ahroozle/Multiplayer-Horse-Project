@@ -58,4 +58,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 		static void ExportToBitmap(const TArray<FColor>& pixels, FString fileName, int width, int height);
 
+	UFUNCTION(BlueprintCallable)
+		static class UUserWidget* CreateWidgetProxy(class APlayerController* Owner, TSubclassOf<class UUserWidget> WidgClass);
+
+	UFUNCTION(BlueprintPure)
+		static FLinearColor ColorFromHex(const FString& Hex);
 };

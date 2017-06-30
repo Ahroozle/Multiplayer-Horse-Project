@@ -27,8 +27,13 @@ public:
 		bool ServerChatSend_Validate(AMPHorsoPlayerController* Sender, const FString& NewRawMessage);
 
 	UFUNCTION(NetMulticast, Reliable, WithValidation)
-		void MulticastChatSend(const FChatMessage& NewMessage);
-		void MulticastChatSend_Implementation(const FChatMessage& NewMessage);
-		bool MulticastChatSend_Validate(const FChatMessage& NewMessage);
+		void MulticastChatSend(AMPHorsoPlayerController* Sender, const FString& NewMessage);
+		void MulticastChatSend_Implementation(AMPHorsoPlayerController* Sender, const FString& NewMessage);
+		bool MulticastChatSend_Validate(AMPHorsoPlayerController* Sender, const FString& NewMessage);
+
+	UFUNCTION(Client, Reliable, WithValidation)
+		void ClientMessageSend(AMPHorsoPlayerController* Sender, const FString& NewMessage);
+		void ClientMessageSend_Implementation(AMPHorsoPlayerController* Sender, const FString& NewMessage);
+		bool ClientMessageSend_Validate(AMPHorsoPlayerController* Sender, const FString& NewMessage);
 	
 };

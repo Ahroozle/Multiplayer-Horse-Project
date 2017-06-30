@@ -5,7 +5,7 @@
 #include "UnrealNetwork.h"
 
 
-void AMPHorsoPlayerController::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
+void AMPHorsoPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty> & OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
@@ -15,6 +15,6 @@ void AMPHorsoPlayerController::GetLifetimeReplicatedProps(TArray< FLifetimePrope
 
 }
 
-void AMPHorsoPlayerController::PassMessage_Implementation(const FChatMessage& Msg) {}
+void AMPHorsoPlayerController::PassMessage_Implementation(AMPHorsoPlayerController* Sender, const FString& Msg) {}
 
-void AMPHorsoPlayerController::PassToPersonalBubble_Implementation(const FChatMessage& Msg) {}
+void AMPHorsoPlayerController::PassToPersonalBubble_Implementation(const FString& Msg) {}

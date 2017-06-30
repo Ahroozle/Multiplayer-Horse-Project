@@ -12,6 +12,8 @@
 
 #include "Kismet/GameplayStatics.h"
 
+#include "Blueprint/WidgetBlueprintLibrary.h"
+
 #if WITH_EDITOR
 #define USTATICFUNCLIB_ALLOW_PRINT_TO_SCREEN true
 #else
@@ -48,12 +50,15 @@ AOneShotAudio* UStaticFuncLib::PlaySound(UObject* WorldContext, const FTransform
 
 UMPHorsoGameInstance* UStaticFuncLib::RetrieveGameInstance(UObject* WorldContext)
 {
-	UGameInstance* gameInst = WorldContext->GetWorld()->GetGameInstance();
-	if (ValidateObject(gameInst, "UStaticFuncLib::RetrieveGameInstance: Couldn't get the game instance!", true))
+	if (ValidateObject(WorldContext, "UStaticFuncLib::RetrieveGameInstance: World Context Object was null!", true))
 	{
-		UMPHorsoGameInstance* castedInst = Cast<UMPHorsoGameInstance>(gameInst);
-		if (ValidateObject(castedInst, "UStaticFuncLib::RetrieveGameInstance: Couldn't cast game instance to proper type!", true))
-			return castedInst;
+		UGameInstance* gameInst = WorldContext->GetWorld()->GetGameInstance();
+		if (ValidateObject(gameInst, "UStaticFuncLib::RetrieveGameInstance: Couldn't get the game instance!", true))
+		{
+			UMPHorsoGameInstance* castedInst = Cast<UMPHorsoGameInstance>(gameInst);
+			if (ValidateObject(castedInst, "UStaticFuncLib::RetrieveGameInstance: Couldn't cast game instance to proper type!", true))
+				return castedInst;
+		}
 	}
 	return nullptr;
 }
@@ -266,4 +271,14 @@ AActor* UStaticFuncLib::CloneActor(AActor* Original)
 void UStaticFuncLib::ExportToBitmap(const TArray<FColor>& pixels, FString fileName, int width, int height)
 {
 	FFileHelper::CreateBitmap(*(FPaths::GameDir() + fileName + ".bmp"), width, height, pixels.GetData());
+}
+
+class UUserWidget* UStaticFuncLib::CreateWidgetProxy(class APlayerController* Owner, TSubclassOf<class UUserWidget> WidgClass)
+{
+	return UWidgetBlueprintLibrary::Create(Owner, WidgClass, Owner);
+}
+
+FLinearColor UStaticFuncLib::ColorFromHex(const FString& Hex)
+{
+	return FLinearColor::FromSRGBColor(FColor::FromHex(Hex));
 }

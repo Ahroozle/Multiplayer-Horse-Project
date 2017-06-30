@@ -7,106 +7,72 @@
 
 #include "StaticFuncLib.h"
 
-bool UChatCommandArchetype::Execute_Implementation(AMPHorsoPlayerController* Caller, const FString& Args, UPARAM(Ref) FChatMessage& InOutMessage, FString& FailReason)
-{
-	return false;
-}
+#include "MPHorsoGameInstance.h"
 
 
-TArray<TSubclassOf<UChatCommandArchetype>> UChatActionsLibrary::CommandArchetypes;
-TArray<TSubclassOf<UChatEmoteArchetype>> UChatActionsLibrary::EmoteArchetypes;
-
-void UChatActionsLibrary::PopulateCommandArchetypes()
-{
-	for (TObjectIterator<UClass> iter; iter; ++iter)
-	{
-		if (iter->IsChildOf(UChatCommandArchetype::StaticClass()) &&
-			*iter != UChatCommandArchetype::StaticClass() &&
-			!iter->GetName().StartsWith("Skel_"))
-		{
-			//UStaticFuncLib::Print(iter->GetName(), true);
-			CommandArchetypes.Add(*iter);
-		}
-	}
-}
-
-void UChatActionsLibrary::PopulateEmoteArchetypes()
-{
-	for (TObjectIterator<UClass> iter; iter; ++iter)
-	{
-		if (iter->IsChildOf(UChatEmoteArchetype::StaticClass()) &&
-			*iter != UChatEmoteArchetype::StaticClass() &&
-			!iter->GetName().StartsWith("Skel_"))
-		{
-			//UStaticFuncLib::Print(iter->GetName(), true);
-			EmoteArchetypes.Add(*iter);
-		}
-	}
-}
-
-void UChatActionsLibrary::TranslateMessage(const FString& InMessage, FChatMessage& OutMessage, FChatCommand& OutCommand)
-{
-	if (InMessage.StartsWith("/"))
-	{
-		// Check for command stuff
-		if (CommandArchetypes.Num() < 1)
-			PopulateCommandArchetypes();
-
-		FString CommandHold, SplitLeft, SplitRight;
-
-		if (!InMessage.Split(" ", &CommandHold, &SplitRight))
-			CommandHold = InMessage;
-
-		FName CommandCast = *(CommandHold.ToLower());
-		for (auto &curr : CommandArchetypes)
-		{
-			if (curr.GetDefaultObject()->CommandNames.Contains(CommandCast))
-			{
-				OutCommand.ClassPtr = curr;
-
-				if (!SplitRight.IsEmpty())
-				{
-					FString ArgString;
-					for (int currArg = 0; currArg < curr.GetDefaultObject()->ArgumentNames.Num(); ++currArg)
-					{
-						if (SplitRight.Split(" ", &SplitLeft, &SplitRight))
-						{
-							ArgString += SplitLeft + " ";
-						}
-						else
-						{
-							ArgString = SplitRight;
-							break;
-						}
-					}
-					OutCommand.Parameters = ArgString.TrimTrailing();
-				}
-
-				break;
-			}
-		}
-		
-		if (nullptr == OutCommand.ClassPtr)
-		{
-			for (auto &curr : CommandArchetypes)
-			{
-				if (curr->GetName().Contains("_Invalid"))
-				{
-					OutCommand.ClassPtr = curr;
-					OutCommand.Parameters = CommandHold;
-
-					break;
-				}
-			}
-		}
-
-		OutMessage.Message = SplitRight;
-		return;
-	}
-
-	OutMessage.ChatChannel = "General";
-	OutMessage.Message = InMessage;
-}
+//void UChatActionsLibrary::TranslateMessage(const FString& InMessage, FChatMessage& OutMessage, FChatCommand& OutCommand)
+//{
+//	if (InMessage.StartsWith("/"))
+//	{
+//		// Check for command stuff
+//		if (CommandArchetypes.Num() < 1)
+//			PopulateCommandArchetypes();
+//
+//		FString CommandHold, SplitLeft, SplitRight;
+//
+//		if (!InMessage.Split(" ", &CommandHold, &SplitRight))
+//			CommandHold = InMessage;
+//
+//		FName CommandCast = *(CommandHold.ToLower());
+//		for (auto &curr : CommandArchetypes)
+//		{
+//			if (curr.GetDefaultObject()->CommandNames.Contains(CommandCast))
+//			{
+//				OutCommand.ClassPtr = curr;
+//
+//				if (!SplitRight.IsEmpty())
+//				{
+//					FString ArgString;
+//					for (int currArg = 0; currArg < curr.GetDefaultObject()->ArgumentNames.Num(); ++currArg)
+//					{
+//						if (SplitRight.Split(" ", &SplitLeft, &SplitRight))
+//						{
+//							ArgString += SplitLeft + " ";
+//						}
+//						else
+//						{
+//							ArgString = SplitRight;
+//							break;
+//						}
+//					}
+//					OutCommand.Parameters = ArgString.TrimTrailing();
+//				}
+//
+//				break;
+//			}
+//		}
+//		
+//		if (nullptr == OutCommand.ClassPtr)
+//		{
+//			for (auto &curr : CommandArchetypes)
+//			{
+//				if (curr->GetName().Contains("_Invalid"))
+//				{
+//					OutCommand.ClassPtr = curr;
+//					OutCommand.Parameters = CommandHold;
+//
+//					break;
+//				}
+//			}
+//		}
+//
+//		//OutMessage.Message = SplitRight;
+//		return;
+//	}
+//
+//	//OutMessage.ChatChannel = "General";
+//	//OutMessage.Message = InMessage;
+//}
 
 void UChatActionsLibrary::TimeAsString(FString& OutString)
 {
@@ -116,97 +82,133 @@ void UChatActionsLibrary::TimeAsString(FString& OutString)
 	OutString = FString::Printf(TEXT("[ %02d:%02d:%02d ] "), Hour, Minute, Second);
 }
 
-void UChatActionsLibrary::SplitStringWithEmotes(const FString& In, TArray<FString>& Out)
+void UChatActionsLibrary::ParseTags(const FString& InMessage, TArray<FDeconstructedTagData>& OutDeconstructed)
 {
-	// PER-CHARACTER VERSION (DEPRECATED)
+	TArray<FName> CurrTags;
+	TArray<FString> CurrTagParams;
 
-	//int firstind;
-	//if (In.FindChar(':',firstind))
-	//{
-	//	TArray<FString> PreFeed;
-	//	In.ParseIntoArray(PreFeed,TEXT(":"), false);
-
-	//	// the structure of sentences makes it so that when split
-	//	// and including empty strings, every even-numbered piece
-	//	// starting from 1 is an emote
-
-	//	int currCount = 1;
-	//	for (auto &currPiece : PreFeed)
-	//	{
-	//		if (currCount % 2)
-	//		{
-	//			if (!currPiece.IsEmpty())
-	//			{
-	//				for (auto &currChar : currPiece.GetCharArray())
-	//					Out.Add(FString(1, &currChar));
-
-	//				Out.RemoveAt(Out.Num() - 1, 1); // remove null terminator
-	//			}
-	//		}
-	//		else
-	//			Out.Add(":" + currPiece.ToLower() + ":");
-
-	//		++currCount;
-	//	}
-	//}
-	//else
-	//{
-	//	for (auto &curr : In.GetCharArray())
-	//		Out.Add(FString(1, &curr));
-
-	//	Out.RemoveAt(Out.Num() - 1, 1); // remove null terminator
-	//}
-
-	//PER-WORD VERSION
-
-	int firstind;
-	if (In.FindChar(':',firstind))
+	for (auto iter = InMessage.CreateConstIterator(); iter; ++iter)
 	{
-		TArray<FString> PreFeed;
-		In.ParseIntoArray(PreFeed,TEXT(":"), false);
 
-		// the structure of sentences makes it so that when split
-		// and including empty strings, every even-numbered piece
-		// starting from 1 is an emote
-
-		int currCount = 1;
-		for (auto &currPiece : PreFeed)
+		switch (*iter)
 		{
-			if (currCount % 2)
+		case TEXT('['): // start of tag
 			{
-				if (!currPiece.IsEmpty())
-					Out.Add(currPiece);
-			}
-			else
-				Out.Add(":" + currPiece.ToLower() + ":");
+				auto furtheriter = iter;
+				FString TagRaw;
+				++furtheriter;
+				while (furtheriter && (*furtheriter != ':' && *furtheriter != '[' && *furtheriter != ']'))
+				{
+					TagRaw += *furtheriter;
+					++furtheriter;
+				}
 
-			++currCount;
+				if (furtheriter && *furtheriter == ':' && !TagRaw.IsEmpty())
+				{
+					// tag is properly defined enough, split and push.
+
+					FString LHS, RHS;
+					if (!TagRaw.Split("/", &LHS, &RHS))
+						LHS = TagRaw;
+
+					CurrTags.Push(*LHS);
+					CurrTagParams.Push(RHS);
+
+					while (iter != furtheriter)
+						++iter;
+				}
+				else
+				{
+					// invalid tag, just consider this sequence a normal word.
+
+					FDeconstructedTagData NewDecon;
+
+					while ((iter + 1) != furtheriter)
+					{
+						NewDecon.Data += *iter;
+						++iter;
+					}
+					NewDecon.Data += *iter;
+
+					NewDecon.Tags = CurrTags;
+					NewDecon.TagParams = CurrTagParams;
+
+					OutDeconstructed.Add(NewDecon);
+				}
+			}
+
+			break;
+
+		case TEXT(']'): // end of tag
+			{
+				if (CurrTags.Num() > 0)
+				{
+					CurrTags.Pop();
+					CurrTagParams.Pop();
+				}
+				else
+				{
+					FDeconstructedTagData NewDecon;
+					NewDecon.Data += *iter;
+
+					NewDecon.Tags = CurrTags;
+					NewDecon.TagParams = CurrTagParams;
+
+					OutDeconstructed.Add(NewDecon);
+				}
+
+			}
+			break;
+
+		default: // other
+			{
+				// new actual deconstructed data to create
+
+				FDeconstructedTagData NewDecon;
+
+				auto furtheriter = iter;
+				while (furtheriter && (*furtheriter != '[' && *furtheriter != ']'))
+				{
+					NewDecon.Data += *furtheriter;
+					++furtheriter;
+				}
+
+				NewDecon.Tags = CurrTags;
+				NewDecon.TagParams = CurrTagParams;
+
+				OutDeconstructed.Add(NewDecon);
+
+				while ((iter + 1) != furtheriter)
+					++iter;
+			}
+			break;
 		}
+
 	}
-	else
-	{
-		Out.Add(In);
-	}
+
 }
 
-bool UChatActionsLibrary::IsEmote(const FString& String, class UTexture*& OutEmoteImage)
+void UChatActionsLibrary::ApplyTags(UObject* Caller, const FString& Message, TArray<UUserWidget*>& ConstructedWords, bool PerLetterWords)
 {
-	if (String.StartsWith(":"))
+	UMPHorsoGameInstance* GameInst = UStaticFuncLib::RetrieveGameInstance(Caller);
+
+	if (nullptr != GameInst)
 	{
-		if (EmoteArchetypes.Num() < 1)
-			PopulateEmoteArchetypes();
+		TArray<FDeconstructedTagData> Decon;
+		ParseTags(Message, Decon);
 
-		for (auto &curr : EmoteArchetypes)
-		{
-			if (curr.GetDefaultObject()->EmoteNames.Contains(String))
-			{
-				OutEmoteImage = curr.GetDefaultObject()->Image;
-				return true;
-			}
-		}
-
-		UStaticFuncLib::Print("Couldn't find an emote named \'" + String + "\'!\n(Note: Did you make sure to add it to the appropriate MPHorsoGameInstanceBP array?)", true);
+		GameInst->ChatTagBlock.GetDefaultObject()->Apply(Caller, Decon, GameInst->DefaultChatWordType, ConstructedWords, PerLetterWords);
 	}
+	else
+		UStaticFuncLib::Print("UChatActionsLibrary::ApplyTags: Couldn't retrieve the gameinstance!", true);
+}
 
-	return false;
+int UChatActionsLibrary::Roll(int NumDie, int Sidedness)
+{
+	int RollingRes = 0;
+
+	while (--NumDie >= 0)
+		RollingRes += FMath::RandRange(1, Sidedness);
+
+	return RollingRes;
 }
