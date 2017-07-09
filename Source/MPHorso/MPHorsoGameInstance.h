@@ -62,6 +62,11 @@ public:
 		TArray<FString> RuntimeErrorList;
 
 
+	// TODO SWITCH TO PLAYER PROFILES VIA SAVEGAME STUFF
+	UPROPERTY(BlueprintReadWrite)
+		TMap<FName, FLinearColor> ColorScheme;
+
+
 	virtual void Init() override;
 
 	void OnNetFail(UWorld *World, UNetDriver *NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString);

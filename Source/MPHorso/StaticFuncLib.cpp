@@ -13,6 +13,10 @@
 #include "Kismet/GameplayStatics.h"
 
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Blueprint/UserWidget.h"
+
+#include "Developer/DesktopPlatform/Public/DesktopPlatformModule.h"
+
 
 #if WITH_EDITOR
 #define USTATICFUNCLIB_ALLOW_PRINT_TO_SCREEN true
@@ -281,4 +285,94 @@ class UUserWidget* UStaticFuncLib::CreateWidgetProxy(class APlayerController* Ow
 FLinearColor UStaticFuncLib::ColorFromHex(const FString& Hex)
 {
 	return FLinearColor::FromSRGBColor(FColor::FromHex(Hex));
+}
+
+FString UStaticFuncLib::GetGameDirectory() { return FPaths::GameDir(); }
+
+TSharedPtr<FGenericWindow> UStaticFuncLib::GetMainNativeWindow()
+{
+	GEngine->GameViewport->GetWindow()->GetNativeWindow()->GetOSWindowHandle();
+
+	if (nullptr != GEngine->GameViewport)
+	{
+		TSharedPtr<SWindow> RetrievedWind = GEngine->GameViewport->GetWindow();
+
+		if (RetrievedWind.IsValid())
+			return RetrievedWind->GetNativeWindow();
+	}
+
+	return nullptr;
+}
+
+TSharedPtr<FGenericWindow> UStaticFuncLib::GetNativeSubWindow(UWidget* SubWindowContext)
+{
+	if (nullptr != SubWindowContext)
+	{
+		TSharedPtr<SWindow> RetrievedWind = FSlateApplication::Get().FindWidgetWindow(SubWindowContext->TakeWidget());
+
+		if (RetrievedWind.IsValid())
+			return RetrievedWind->GetNativeWindow();
+	}
+
+	return nullptr;
+}
+
+bool UStaticFuncLib::OpenFileDialog(
+									const FString& DialogTitle,
+									const FString& DefaultPath,
+									const FString& DefaultFile,
+									const FString& FileTypes,
+									bool MultipleFiles,
+									TArray<FString>& OutFilenames,
+									UWidget* SubWindowContext
+								   )
+{
+	TSharedPtr<FGenericWindow> NativeWind = GetMainNativeWindow();
+
+	if (!NativeWind.IsValid())
+		NativeWind = GetNativeSubWindow(SubWindowContext);
+
+	if (NativeWind.IsValid())
+	{
+		const void* OSWind = NativeWind->GetOSWindowHandle();
+
+		return FDesktopPlatformModule::Get()->OpenFileDialog(OSWind, DialogTitle, DefaultPath, DefaultFile, FileTypes, (MultipleFiles ? 0x0 : 0x1), OutFilenames);
+	}
+
+	return false;
+}
+
+bool UStaticFuncLib::SaveFileDialog(
+									const FString& DialogTitle,
+									const FString& DefaultPath,
+									const FString& DefaultFile,
+									const FString& FileTypes,
+									bool MultipleFiles,
+									TArray<FString>& OutFilenames,
+									UWidget* SubWindowContext
+								   )
+{
+	TSharedPtr<FGenericWindow> NativeWind = GetMainNativeWindow();
+
+	if (!NativeWind.IsValid())
+		NativeWind = GetNativeSubWindow(SubWindowContext);
+
+	if (NativeWind.IsValid())
+	{
+		const void* OSWind = NativeWind->GetOSWindowHandle();
+
+		return FDesktopPlatformModule::Get()->SaveFileDialog(OSWind, DialogTitle, DefaultPath, DefaultFile, FileTypes, (MultipleFiles ? 0x0 : 0x1), OutFilenames);
+	}
+
+	return false;
+}
+
+bool UStaticFuncLib::GetStringFromFile(FString& OutString, const FString& FilePath)
+{
+	return FFileHelper::LoadFileToString(OutString, *FilePath);
+}
+
+bool UStaticFuncLib::SaveStringToFile(const FString& StringToSave, const FString& FilePath)
+{
+	return FFileHelper::SaveStringToFile(StringToSave, *FilePath);
 }

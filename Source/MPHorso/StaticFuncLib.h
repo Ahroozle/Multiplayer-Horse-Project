@@ -63,4 +63,39 @@ public:
 
 	UFUNCTION(BlueprintPure)
 		static FLinearColor ColorFromHex(const FString& Hex);
+
+	UFUNCTION(BlueprintPure)
+		static FString GetGameDirectory();
+
+	// C++ - only
+	static TSharedPtr<FGenericWindow> GetMainNativeWindow();
+	static TSharedPtr<FGenericWindow> GetNativeSubWindow(class UWidget* SubWindowContext);
+
+	UFUNCTION(BlueprintCallable)
+		static bool OpenFileDialog(
+									const FString& DialogTitle,
+									const FString& DefaultPath,
+									const FString& DefaultFile,
+									const FString& FileTypes,
+									bool MultipleFiles,
+									TArray<FString>& OutFilenames,
+									class UWidget* SubWindowContext
+								  );
+
+	UFUNCTION(BlueprintCallable)
+		static bool SaveFileDialog(
+									const FString& DialogTitle,
+									const FString& DefaultPath,
+									const FString& DefaultFile,
+									const FString& FileTypes,
+									bool MultipleFiles,
+									TArray<FString>& OutFilenames,
+									class UWidget* SubWindowContext
+								  );
+
+	UFUNCTION(BlueprintCallable)
+		static bool GetStringFromFile(FString& OutString, const FString& FilePath);
+
+	UFUNCTION(BlueprintCallable)
+		static bool SaveStringToFile(const FString& StringToSave, const FString& FilePath);
 };
