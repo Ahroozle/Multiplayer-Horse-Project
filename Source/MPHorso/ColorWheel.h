@@ -7,7 +7,7 @@
 #include "ColorWheel.generated.h"
 
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FColChangedNotify, FLinearColor, Col);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FColChangedNotify, class UColorWheel*, Instigator, FLinearColor, Col);
 
 /**
  * 

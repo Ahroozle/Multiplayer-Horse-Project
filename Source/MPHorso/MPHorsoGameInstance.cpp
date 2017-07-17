@@ -7,6 +7,8 @@
 
 #include "StaticFuncLib.h"
 
+#include "MPHorsoSaveGameTypes.h"
+
 
 void UMPHorsoGameInstance::Init()
 {
@@ -18,32 +20,27 @@ void UMPHorsoGameInstance::OnNetFail(UWorld *World, UNetDriver *NetDriver, ENetw
 	RuntimeErrorList.Add(ErrorString);
 }
 
-//USkinAnimation* UMPHorsoGameInstance::GetSkinAnim(TSubclassOf<USkinAnimation> InstClass)
-//{
-//	if (UStaticFuncLib::ValidateObject(InstClass, "UMPHorsoGameInstance::GetSkinAnim: Skin animation class passed in was invalid!", true))
-//	{
-//		USkinAnimation* foundSkin = SkinInsts.FindRef(InstClass);
-//		if (nullptr == foundSkin || !foundSkin->IsValidLowLevel())
-//		{
-//			foundSkin = NewObject<USkinAnimation>((UObject*)GetTransientPackage(), InstClass);
-//			SkinInsts.Add(InstClass, foundSkin);
-//		}
-//		return foundSkin;
-//	}
-//	return nullptr;
-//}
-//
-//UOffsetAnimation* UMPHorsoGameInstance::GetOffsAnim(TSubclassOf<UOffsetAnimation> InstClass)
-//{
-//	if (UStaticFuncLib::ValidateObject(InstClass, "UMPHorsoGameInstance::GetOffsAnim: Offset animation class passed in was invalid!", true))
-//	{
-//		UOffsetAnimation* foundOffs = OffsInsts.FindRef(InstClass);
-//		if (nullptr == foundOffs)
-//		{
-//			foundOffs = NewObject<UOffsetAnimation>((UObject*)GetTransientPackage(), InstClass);
-//			OffsInsts.Add(InstClass, foundOffs);
-//		}
-//		return foundOffs;
-//	}
-//	return nullptr;
-//}
+ERaceType UMPHorsoGameInstance::GetRace()
+{
+	if (nullptr != CharacterSave)
+		return CharacterSave->Race;
+
+	else return ERaceType::Race_EarthP;
+}
+
+void UMPHorsoGameInstance::GetColorSchemeAsArrays(TArray<FName>& OutParts, TArray<FLinearColor>& OutColors)
+{
+	if (nullptr != CharacterSave)
+	{
+		CharacterSave->ColorScheme.GenerateKeyArray(OutParts);
+		CharacterSave->ColorScheme.GenerateValueArray(OutColors);
+	}
+}
+
+FName UMPHorsoGameInstance::GetLocalPlayerName()
+{
+	if (nullptr != CharacterSave)
+		return *CharacterSave->CharacterName;
+
+	else return FName(EName::NAME_None);
+}

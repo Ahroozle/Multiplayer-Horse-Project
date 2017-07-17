@@ -17,6 +17,9 @@ class USpellArchetype;
 
 class UCameraComponent;
 
+class UCharacterSaveBase;
+class UWorldSaveBase;
+
 UENUM(BlueprintType)
 enum class ERaceType : uint8
 {
@@ -34,14 +37,10 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 {
 	GENERATED_BODY()
 
-	//TMap<TSubclassOf<USkinAnimation>, USkinAnimation*> SkinInsts;
-	//TMap<TSubclassOf<UOffsetAnimation>, UOffsetAnimation*> OffsInsts;
-
 	UCameraComponent* relevantCamera;
 
-	ERaceType Race = ERaceType::Race_EarthP;
-
-	FName PlayerName;
+	UPROPERTY()
+		UCharacterSaveBase* CharacterSave;
 
 public:
 
@@ -58,21 +57,23 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 		TArray<TSubclassOf<USpellArchetype>> AllSpells;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TSubclassOf<UCharacterSaveBase> CurrentCharacterSaveType;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TSubclassOf<UWorldSaveBase> CurrentWorldSaveType;
+	UPROPERTY(EditDefaultsOnly)
+		TArray<TSubclassOf<UCharacterSaveBase>> PreviousCharacterSaveTypes;
+	UPROPERTY(EditDefaultsOnly)
+		TArray<TSubclassOf<UWorldSaveBase>> PreviousWorldSaveTypes;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<FString> RuntimeErrorList;
-
-
-	// TODO SWITCH TO PLAYER PROFILES VIA SAVEGAME STUFF
-	UPROPERTY(BlueprintReadWrite)
-		TMap<FName, FLinearColor> ColorScheme;
 
 
 	virtual void Init() override;
 
 	void OnNetFail(UWorld *World, UNetDriver *NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString);
-	
-	//USkinAnimation* GetSkinAnim(TSubclassOf<USkinAnimation> InstClass);
-	//UOffsetAnimation* GetOffsAnim(TSubclassOf<UOffsetAnimation> InstClass);
+
 
 	UFUNCTION(BlueprintCallable)
 		void SetRelevantCamera(UCameraComponent* newRelevant) { relevantCamera = newRelevant; }
@@ -80,13 +81,19 @@ public:
 	UFUNCTION(BlueprintPure)
 		UCameraComponent* GetRelevantCamera() { return relevantCamera; }
 
-	UFUNCTION(BlueprintCallable)
-		void SetRace(ERaceType NewRace) { Race = NewRace; }
+
 	UFUNCTION(BlueprintPure)
-		ERaceType GetRace() { return Race; }
+		ERaceType GetRace();
+
+	UFUNCTION(BlueprintPure)
+		void GetColorSchemeAsArrays(TArray<FName>& OutParts, TArray<FLinearColor>& OutColors);
+
+	UFUNCTION(BlueprintPure)
+		FName GetLocalPlayerName();
 
 	UFUNCTION(BlueprintCallable)
-		void SetLocalPlayerName(FName NewName) { PlayerName = NewName; }
+		void SetSave(UCharacterSaveBase* NewSave) { CharacterSave = NewSave; }
+
 	UFUNCTION(BlueprintPure)
-		FName GetLocalPlayerName() { return PlayerName; }
+		UCharacterSaveBase* GetSave() { return CharacterSave; }
 };

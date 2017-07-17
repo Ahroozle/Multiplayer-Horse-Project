@@ -20,13 +20,13 @@ void UColorWheel::SetColor(FLinearColor NewCol)
 void UColorWheel::OnColorUpdated(FLinearColor NewCol)
 {
 	SelectedColor = NewCol;
-	ColorChangedDelegate.Broadcast(NewCol);
+	ColorChangedDelegate.Broadcast(this, NewCol);
 }
 void UColorWheel::OnColorCancelled(FLinearColor NewCol)
 {
 	// I'm assuming this is given the last color the user 'picked' before cancelling.
 	// I guess I'll pass it along to the delegate just in case...
-	ColorCancelledDelegate.Broadcast(NewCol);
+	ColorCancelledDelegate.Broadcast(this, NewCol);
 }
 
 void UColorWheel::ReleaseSlateResources(bool bReleaseChildren)
