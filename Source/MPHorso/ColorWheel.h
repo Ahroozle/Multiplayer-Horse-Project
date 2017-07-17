@@ -21,8 +21,11 @@ public:
 
 	UColorWheel(const FObjectInitializer& ObjectInitializer);
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Color Wheel")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Color Wheel", meta = (ExposeOnSpawn))
 		FLinearColor SelectedColor = FLinearColor::White;
+	UPROPERTY()
+		FGetLinearColor SelectedColorDelegate;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Color Wheel")
 		bool AlphaSelectable = false;
 
@@ -40,6 +43,10 @@ public:
 	void OnColorUpdated(FLinearColor NewCol);
 	void OnColorCancelled(FLinearColor NewCol);
 
+	//~ Begin UWidget Interface
+	virtual void SynchronizeProperties() override;
+	//~ End UWidget Interface
+
 	//~ Begin UVisual Interface
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	//~ End UVisual Interface
@@ -47,6 +54,7 @@ public:
 protected:
 	//~ Begin UWidget Interface
 	virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual void OnBindingChanged(const FName& Property) override;
 	//~ End UWidget Interface
 
 #if WITH_EDITOR
@@ -57,4 +65,9 @@ protected:
 
 protected:
 	TSharedPtr<SLenientColorPicker> MyPicker;
+
+private:
+
+	TAttribute<FLinearColor> ColorAttr;
+
 };

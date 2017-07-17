@@ -36,9 +36,21 @@ void UColorWheel::ReleaseSlateResources(bool bReleaseChildren)
 	MyPicker.Reset();
 }
 
+void UColorWheel::SynchronizeProperties()
+{
+	Super::SynchronizeProperties();
+
+	ColorAttr = OPTIONAL_BINDING(FLinearColor, SelectedColor);
+
+	if (MyPicker.IsValid())
+		MyPicker->SetColor(SelectedColor);
+}
+
 TSharedRef<SWidget> UColorWheel::RebuildWidget()
 {
 	FColorPickerArgs Args;
+
+	ColorAttr = OPTIONAL_BINDING(FLinearColor, SelectedColor);
 
 	///*bool*/								Args.bIsModal						/*=*/	;
 	///*TSharedPtr<SWidget>*/					Args.ParentWidget					/*=*/	;
@@ -58,7 +70,7 @@ TSharedRef<SWidget> UColorWheel::RebuildWidget()
 	/*FOnColorPickerCancelled*/				Args.OnColorPickerCancelled			= FOnColorPickerCancelled::CreateUObject(this, &UColorWheel::OnColorCancelled);
 	///*FSimpleDelegate*/						Args.OnInteractivePickBegin			/*=*/	;
 	///*FSimpleDelegate*/						Args.OnInteractivePickEnd			/*=*/	;
-	/*FLinearColor*/						Args.InitialColorOverride			= SelectedColor;
+	/*FLinearColor*/						Args.InitialColorOverride			= ColorAttr.Get();//SelectedColor;
 
 	MyPicker = SNew(SLenientColorPicker)
 					.TargetColorAttribute(Args.InitialColorOverride)
@@ -77,6 +89,17 @@ TSharedRef<SWidget> UColorWheel::RebuildWidget()
 					.DisplayGamma(Args.DisplayGamma);
 
 	return MyPicker.ToSharedRef();
+}
+
+void UColorWheel::OnBindingChanged(const FName& Property)
+{
+	Super::OnBindingChanged(Property);
+
+	if (Property == "SelectedColorDelegate")
+	{
+		ColorAttr = OPTIONAL_BINDING(FLinearColor, SelectedColor);
+		MyPicker->Invalidate(EInvalidateWidget::LayoutAndVolatility);
+	}
 }
 
 #if WITH_EDITOR
