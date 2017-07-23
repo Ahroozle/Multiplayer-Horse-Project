@@ -376,3 +376,26 @@ bool UStaticFuncLib::SaveStringToFile(const FString& StringToSave, const FString
 {
 	return FFileHelper::SaveStringToFile(StringToSave, *FilePath);
 }
+
+FString UStaticFuncLib::AddSpacesToCamelcase(const FString& InString)
+{
+	if (InString.IsEmpty())
+		return "";
+
+	const TCHAR spacechar = FString(" ")[0];
+
+	FString NewStr;
+	for (auto iter = InString.CreateConstIterator(); iter; ++iter)
+	{
+		if (iter - 1)
+		{
+			if ((*iter != spacechar && *(iter - 1) != spacechar))
+			{
+				if ((TChar<TCHAR>::IsDigit(*iter) && TChar<TCHAR>::IsAlpha(*(iter - 1))) || (TChar<TCHAR>::IsUpper(*iter) && TChar<TCHAR>::IsLower(*(iter - 1))))
+					NewStr += " ";
+			}
+		}
+		NewStr += *iter;
+	}
+	return NewStr;
+}

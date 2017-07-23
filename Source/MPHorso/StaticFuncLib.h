@@ -98,4 +98,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		static bool SaveStringToFile(const FString& StringToSave, const FString& FilePath);
+
+	UFUNCTION(BlueprintPure)
+		static FString AddSpacesToCamelcase(const FString& InString);
 };
