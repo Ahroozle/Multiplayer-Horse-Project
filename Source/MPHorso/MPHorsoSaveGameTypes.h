@@ -17,8 +17,11 @@ class MPHORSO_API UMPHorsoSaveBase : public USaveGame
 
 public:
 
-	UPROPERTY(EditDefaultsOnly, Category = "MP Horso SaveGame Class Base")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "MP Horso SaveGame Class Base")
 		FString VersionString;
+
+	UPROPERTY()
+		uint32 UniqueID;
 
 
 	UFUNCTION(BlueprintCallable, Category = "MP Horso SaveGame Class Base")
@@ -33,9 +36,9 @@ public:
 /*
 	SaveGame class for characters.
 
-	Files of this type are intended to be in the format: CSave_<CharacterName>_<VersionString>
+	Files of this type are intended to be in the format: CSave_<UniqueID>_<CharacterName>_<VersionString>
 	e.g.
-	"CSave_Twi_1"
+	"CSave_1290437_Twi_1"
 */
 UCLASS(abstract, Blueprintable)
 class MPHORSO_API UCharacterSaveBase : public UMPHorsoSaveBase
@@ -54,16 +57,16 @@ public:
 		TMap<FName, FLinearColor> ColorScheme;
 
 
-	virtual FString GetGeneratedFileName() const override { return "CSave_" + CharacterName + "_" + VersionString; }
+	virtual FString GetGeneratedFileName() const override;
 	
 };
 
 /*
 	SaveGame class for worlds
 
-	Files of this type are intended to be in the format: WSave_<WorldName>_<VersionString>
+	Files of this type are intended to be in the format: WSave_<UniqueID>_<WorldName>_<VersionString>
 	e.g.
-	"WSave_Equus_1"
+	"WSave_129492_Equus_1"
 
 	(TODO : This is WIP and won't be used until world generation takes a front seat again)
 */
@@ -78,7 +81,7 @@ public:
 		FString WorldName;
 	
 
-	virtual FString GetGeneratedFileName() const override { return "WSave_" + WorldName + "_" + VersionString; }
+	virtual FString GetGeneratedFileName() const override;
 
 };
 
@@ -96,6 +99,12 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		static void GetSaves(UObject* WorldContext, TArray<UCharacterSaveBase*>& OutCharacterSaves, TArray<UWorldSaveBase*>& OutWorldSaves);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Unique ID For Character Save"))
+		static void GenUIDForCSave(UCharacterSaveBase* NewSave, const TArray<UCharacterSaveBase*>& OtherExistingSaves);
+
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Unique ID For World Save"))
+		static void GenUIDForWSave(UWorldSaveBase* NewSave, const TArray<UWorldSaveBase*>& OtherExistingSaves);
 
 private:
 

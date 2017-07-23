@@ -12,6 +12,37 @@
 #include "Kismet/GameplayStatics.h"
 
 
+FString UCharacterSaveBase::GetGeneratedFileName() const
+{
+	TArray<TCHAR> NameAsArr = CharacterName.GetCharArray();
+
+	//for (auto &currChar : NameAsArr)
+	//{
+	//	if (!TChar<TCHAR>::IsAlnum(currChar))
+	//		currChar = FString("_")[0];
+	//}
+	NameAsArr = NameAsArr.FilterByPredicate([](const TCHAR& ch) { return TChar<TCHAR>::IsAlnum(ch); });
+
+	FString CleanedCharName(NameAsArr.Num(), NameAsArr.GetData());
+	return "CSave_" + FString::FromInt(UniqueID) + "_" + CleanedCharName + "_" + VersionString;
+}
+
+FString UWorldSaveBase::GetGeneratedFileName() const
+{
+	TArray<TCHAR> NameAsArr = WorldName.GetCharArray();
+
+	//for (auto &currChar : NameAsArr)
+	//{
+	//	if (!TChar<TCHAR>::IsAlnum(currChar))
+	//		currChar = FString("_")[0];
+	//}
+	NameAsArr = NameAsArr.FilterByPredicate([](const TCHAR& ch) { return TChar<TCHAR>::IsAlnum(ch); });
+
+	FString CleanedWorldName(NameAsArr.Num(), NameAsArr.GetData());
+	return "WSave_" + FString::FromInt(UniqueID)  + "_" + CleanedWorldName + "_" + VersionString;
+}
+
+
 void USaveGameHelperLibrary::GetSaveNames(TArray<FString>& OutCharacterFileNames, TArray<FString>& OutWorldFileNames)
 {
 	// took this solution from https://answers.unrealengine.com/questions/145598/is-there-a-way-to-get-all-savegames-in-bp.html , third down.
@@ -68,6 +99,9 @@ void USaveGameHelperLibrary::GetSaves(UObject* WorldContext, TArray<UCharacterSa
 
 	USaveGame* CurrLoaded;
 
+	TArray<UCharacterSaveBase*> CharactersToUID;
+	TArray<UWorldSaveBase*> WorldsToUID;
+
 	for (auto &currCharSlot : CharSaves)
 	{
 		CurrLoaded = UGameplayStatics::LoadGameFromSlot(currCharSlot, 0);
@@ -84,6 +118,8 @@ void USaveGameHelperLibrary::GetSaves(UObject* WorldContext, TArray<UCharacterSa
 				{
 					CurrAsCharacterSave = UpdateOutdatedCharacterSave(WorldContext, CurrAsCharacterSave);
 
+					CharactersToUID.Add(CurrAsCharacterSave);
+
 					if(nullptr != CurrAsCharacterSave)
 						OutCharacterSaves.Add(CurrAsCharacterSave);
 
@@ -91,6 +127,9 @@ void USaveGameHelperLibrary::GetSaves(UObject* WorldContext, TArray<UCharacterSa
 			}
 		}
 	}
+
+	for (auto *currCSave : CharactersToUID)
+		GenUIDForCSave(currCSave, OutCharacterSaves);
 
 	for (auto &currWorldSlot : WorldSaves)
 	{
@@ -108,13 +147,48 @@ void USaveGameHelperLibrary::GetSaves(UObject* WorldContext, TArray<UCharacterSa
 				{
 					CurrAsWorldSave = UpdateOutdatedWorldSave(WorldContext, CurrAsWorldSave);
 
+					WorldsToUID.Add(CurrAsWorldSave);
+
 					if (nullptr != CurrAsWorldSave)
 						OutWorldSaves.Add(CurrAsWorldSave);
 				}
 			}
 		}
 	}
+
+	for (auto *currWSave : WorldsToUID)
+		GenUIDForWSave(currWSave, OutWorldSaves);
+
 }
+
+void USaveGameHelperLibrary::GenUIDForCSave(UCharacterSaveBase* NewSave, const TArray<UCharacterSaveBase*>& OtherExistingSaves)
+{
+	if (OtherExistingSaves.Num() <= 0)
+		NewSave->UniqueID = FMath::RandRange(0, 1000000);
+	else
+	{
+		uint32 MaxID = 0;
+		for (auto *currOther : OtherExistingSaves)
+			MaxID = FMath::Max(MaxID, currOther->UniqueID);
+
+		NewSave->UniqueID = ++MaxID;
+	}
+}
+
+void USaveGameHelperLibrary::GenUIDForWSave(UWorldSaveBase* NewSave, const TArray<UWorldSaveBase*>& OtherExistingSaves)
+{
+	if (OtherExistingSaves.Num() <= 0)
+		NewSave->UniqueID = FMath::RandRange(0, 0xFFFFFFFF);
+	else
+	{
+		uint32 MaxID = 0;
+		for (auto *currOther : OtherExistingSaves)
+			MaxID = FMath::Max(MaxID, currOther->UniqueID);
+
+		NewSave->UniqueID = ++MaxID;
+	}
+}
+
 
 bool USaveGameHelperLibrary::CharacterSaveIsLatestVersion(UObject* WorldContext, const UCharacterSaveBase* CSave)
 {
