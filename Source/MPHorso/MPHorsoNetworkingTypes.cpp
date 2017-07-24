@@ -78,12 +78,15 @@ void AMPHorsoUDPSender::CreateSocket()
 		SocketInitFailedDelegate.Broadcast("Failed to create the socket!");
 }
 
-bool AMPHorsoUDPSender::SendData(EHorseDataFlags DataFlag, const TArray<uint8>& DataBytes)
+bool AMPHorsoUDPSender::SendData(UPARAM(Ref) FHorseNetData& Data)
 {
 	if (nullptr != Socket)
 	{
+		FArrayWriter Writer;
+		Writer << Data;
+
 		int SentBytes = 0;
-		Socket->SendTo(DataBytes.GetData(), DataBytes.Num(), SentBytes, *RemoteAddress);
+		Socket->SendTo(Writer.GetData(), Writer.Num(), SentBytes, *RemoteAddress);
 
 		if (0 == SentBytes)
 			UStaticFuncLib::Print("Socket is valid, but no bytes were sent; It may not be listening properly.", true);
@@ -190,7 +193,11 @@ void AMPHorsoUDPReceiver::CreateSocket()
 
 void AMPHorsoUDPReceiver::OnDataReceived(const FArrayReaderPtr& ArrayReaderPtr, const FIPv4Endpoint& EndPt)
 {
-	DataReceivedDelegate.Broadcast(*ArrayReaderPtr);
+	FHorseNetData Data;
+
+	*ArrayReaderPtr << Data;
+
+	DataReceivedDelegate.Broadcast(Data);
 }
 
 void AMPHorsoUDPReceiver::Reset()

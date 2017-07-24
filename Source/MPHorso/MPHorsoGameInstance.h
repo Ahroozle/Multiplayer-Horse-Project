@@ -70,6 +70,24 @@ public:
 		TArray<FString> RuntimeErrorList;
 
 
+	// server protection stuff
+
+	UPROPERTY(BlueprintReadWrite)
+		bool IsHosting = false;
+	UPROPERTY(BlueprintReadWrite)
+		FString Password;
+
+	UPROPERTY(BlueprintReadWrite)
+		bool IsBlacklisting = false;
+	UPROPERTY(BlueprintReadWrite)
+		FString BlacklistPath;
+
+	UPROPERTY(BlueprintReadWrite)
+		bool IsWhitelisting = false;
+	UPROPERTY(BlueprintReadWrite)
+		FString WhitelistPath;
+
+
 	virtual void Init() override;
 
 	void OnNetFail(UWorld *World, UNetDriver *NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString);

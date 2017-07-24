@@ -6,14 +6,49 @@
 #include "Networking.h"
 #include "MPHorsoNetworkingTypes.generated.h"
 
+
 UENUM(BlueprintType)
-enum class EHorseDataFlags : uint8
+enum class EHorseDataType : uint8
 {
 	// Just plain data with no specific purpose
-	HorseData_RawData		UMETA(DisplayName = "Raw Data"),
+	HorseData_RawData				UMETA(DisplayName = "Raw Data"),
 
-	HorseData_JoinRequest	UMETA(DisplayName = "Join Request")
+	// Request to join the server, from client
+	HorseData_JoinRequest			UMETA(DisplayName = "Join Request"),
+
+	// Request for a password, from server to client
+	HorseData_PassRequest			UMETA(DisplayName = "Password Request"),
+
+	// Password data, from client to server
+	HorseData_PassData				UMETA(DisplayName = "Password Data"),
+
+	// Requested connection of client rejected by server
+	HorseData_ConnectionRejected	UMETA(DisplayName = "Connection Rejected"),
+
+	// Requested connection of client accepted by server
+	HorseData_ConnectionAccepted	UMETA(DisplayName = "Connection Accepted")
 };
+
+USTRUCT(BlueprintType)
+struct FHorseNetData
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(BlueprintReadWrite)
+		EHorseDataType DataType;
+
+	UPROPERTY(BlueprintReadWrite)
+		TArray<uint8> Data;
+};
+
+FORCEINLINE FArchive& operator<<(FArchive &Ar, FHorseNetData& StructRef)
+{
+	Ar << StructRef.DataType;
+	Ar << StructRef.Data;
+
+	return Ar;
+}
+
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSocketInitFailedNotify, FString, ErrorString);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSocketReadyNotify);
@@ -53,7 +88,7 @@ public:
 		void CreateSocket();
 
 	UFUNCTION(BlueprintCallable, Category = "UDP Sender")
-		bool SendData(EHorseDataFlags DataFlag, const TArray<uint8>& DataBytes);
+		bool SendData(UPARAM(Ref) FHorseNetData& Data);
 
 	UFUNCTION(BlueprintCallable, Category = "UDP Sender")
 		void Reset();
@@ -62,7 +97,7 @@ public:
 };
 
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDataReceivedNotify, const TArray<uint8>&, ReceivedData);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDataReceivedNotify, const FHorseNetData&, ReceivedData);
 
 UCLASS(BlueprintType)
 class MPHORSO_API AMPHorsoUDPReceiver : public AActor
@@ -83,13 +118,13 @@ public:
 
 	FString ErrorStr;
 
-	UPROPERTY(BlueprintAssignable, Category = "UDP Sender")
+	UPROPERTY(BlueprintAssignable, Category = "UDP Receiver")
 		FSocketInitFailedNotify SocketInitFailedDelegate;
 
-	UPROPERTY(BlueprintAssignable, Category = "UDP Sender")
+	UPROPERTY(BlueprintAssignable, Category = "UDP Receiver")
 		FSocketReadyNotify SocketInitSucceededDelegate;
 
-	UPROPERTY(BlueprintAssignable, Category = "UDP Sender")
+	UPROPERTY(BlueprintAssignable, Category = "UDP Receiver")
 		FDataReceivedNotify DataReceivedDelegate;
 
 
