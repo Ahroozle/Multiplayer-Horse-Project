@@ -63,7 +63,7 @@ void AMPHorsoUDPSender::WaitForDomainResolution()
 
 void AMPHorsoUDPSender::CreateSocket()
 {
-	Socket = FUdpSocketBuilder(*ChosenSocketName).AsReusable().WithBroadcast();
+	Socket = FUdpSocketBuilder(*ChosenSocketName).AsReusable();// .WithBroadcast();
 
 	if (nullptr != Socket)
 	{
@@ -99,12 +99,39 @@ bool AMPHorsoUDPSender::SendData(UPARAM(Ref) FHorseNetData& Data)
 	return false;
 }
 
+bool AMPHorsoUDPSender::SendDataTo(UPARAM(Ref) FHorseNetData& Data, const FString& ToIP)
+{
+	if (nullptr != Socket)
+	{
+		FArrayWriter Writer;
+		Writer << Data;
+
+		TSharedPtr<FInternetAddr> ToAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+		bool validDummy;
+		ToAddress->SetIp(*ToIP, validDummy);
+		ToAddress->SetPort(UMPHorsoNetLibrary::DefaultPort);
+
+		int SentBytes = 0;
+		Socket->SendTo(Writer.GetData(), Writer.Num(), SentBytes, *ToAddress);
+
+		if (0 == SentBytes)
+			UStaticFuncLib::Print("Socket is valid, but no bytes were sent; It may not be listening properly.", true);
+		else
+			return true;
+	}
+	else
+		UStaticFuncLib::Print("Socket is null! Please call InitializeSender() first.", true);
+
+	return false;
+}
+
 void AMPHorsoUDPSender::Reset()
 {
 	if (nullptr != Socket)
 	{
 		Socket->Close();
 		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
+		Socket = nullptr;
 	}
 }
 
@@ -180,10 +207,7 @@ void AMPHorsoUDPReceiver::CreateSocket()
 
 	if (nullptr != Socket)
 	{
-		FTimespan WaitTime = FTimespan::FromMilliseconds(100);
-		UDPReceiver = new FUdpSocketReceiver(Socket, WaitTime, TEXT("UDP_Receiver"));
-		UDPReceiver->OnDataReceived().BindUObject(this, &AMPHorsoUDPReceiver::OnDataReceived);
-		UDPReceiver->Start();
+		GetWorldTimerManager().SetTimer(ListeningTimerHandle, this, &AMPHorsoUDPReceiver::ListenForData, 0.01f, true);
 
 		SocketInitSucceededDelegate.Broadcast();
 	}
@@ -191,24 +215,40 @@ void AMPHorsoUDPReceiver::CreateSocket()
 		SocketInitFailedDelegate.Broadcast("Failed to create the socket!");
 }
 
-void AMPHorsoUDPReceiver::OnDataReceived(const FArrayReaderPtr& ArrayReaderPtr, const FIPv4Endpoint& EndPt)
+void AMPHorsoUDPReceiver::ListenForData()
 {
-	FHorseNetData Data;
+	uint32 DataSize;
+	if (Socket->HasPendingData(DataSize))
+	{
+		FArrayReader Buff;
+		Buff.SetNumZeroed(FMath::Min(DataSize, 2048U * 1024U));
 
-	*ArrayReaderPtr << Data;
+		TSharedRef<FInternetAddr> Sender = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
 
-	DataReceivedDelegate.Broadcast(Data);
+		int ReadBytes = 0;
+		Socket->RecvFrom(Buff.GetData(), DataSize, ReadBytes, *Sender);
+
+		if (ReadBytes > 0)
+		{
+			FHorseNetData Data;
+
+			Buff << Data;
+
+			FString FromIP = FIPv4Endpoint(Sender).Address.ToString();
+
+			DataReceivedDelegate.Broadcast(Data, FromIP);
+		}
+	}
 }
 
 void AMPHorsoUDPReceiver::Reset()
 {
-	if (nullptr != UDPReceiver)
-		delete UDPReceiver;
 
 	if (nullptr != Socket)
 	{
 		Socket->Close();
 		ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(Socket);
+		Socket = nullptr;
 	}
 }
 
@@ -216,11 +256,13 @@ void AMPHorsoUDPReceiver::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
+	GetWorldTimerManager().ClearTimer(ListeningTimerHandle);
+
 	Reset();
 }
 
 
-uint16 UMPHorsoNetLibrary::DefaultPort = 7777;
+uint16 UMPHorsoNetLibrary::DefaultPort = 7878;
 
 bool UMPHorsoNetLibrary::FormatIPv4(const FString& IPString, TArray<uint8>& OutParts, FString& OutErrorString)
 {

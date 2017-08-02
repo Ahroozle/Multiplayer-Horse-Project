@@ -91,13 +91,16 @@ public:
 		bool SendData(UPARAM(Ref) FHorseNetData& Data);
 
 	UFUNCTION(BlueprintCallable, Category = "UDP Sender")
+		bool SendDataTo(UPARAM(Ref) FHorseNetData& Data, const FString& ToIP);
+
+	UFUNCTION(BlueprintCallable, Category = "UDP Sender")
 		void Reset();
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 };
 
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDataReceivedNotify, const FHorseNetData&, ReceivedData);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDataReceivedNotify, const FHorseNetData&, ReceivedData, const FString&, FromIP);
 
 UCLASS(BlueprintType)
 class MPHORSO_API AMPHorsoUDPReceiver : public AActor
@@ -106,17 +109,24 @@ class MPHORSO_API AMPHorsoUDPReceiver : public AActor
 
 public:
 
+	//UPROPERTY()
+	//	FHorseNetData StoredLastData;
+	//UPROPERTY()
+	//	FString StoredLastSenderIP;
+
 	FString ChosenSocketName;
 	int ChosenPort;
 
 	TSharedPtr<FInternetAddr> RemoteAddress;
 	FSocket* Socket;
-	FUdpSocketReceiver* UDPReceiver = nullptr;
+	//FUdpSocketReceiver* UDPReceiver = nullptr;
 
 	FResolveInfo* ResolveInfo = nullptr;
 	FTimerHandle DomainResolutionTimerHandle;
 
 	FString ErrorStr;
+
+	FTimerHandle ListeningTimerHandle;
 
 	UPROPERTY(BlueprintAssignable, Category = "UDP Receiver")
 		FSocketInitFailedNotify SocketInitFailedDelegate;
@@ -124,7 +134,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "UDP Receiver")
 		FSocketReadyNotify SocketInitSucceededDelegate;
 
-	UPROPERTY(BlueprintAssignable, Category = "UDP Receiver")
+	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "UDP Receiver")
 		FDataReceivedNotify DataReceivedDelegate;
 
 
@@ -137,7 +147,12 @@ public:
 	UFUNCTION()
 		void CreateSocket();
 
-	void OnDataReceived(const FArrayReaderPtr& ArrayReaderPtr, const FIPv4Endpoint& EndPt);
+	UFUNCTION()
+		void ListenForData();
+
+	//void Receive(const FArrayReaderPtr& ArrayReaderPtr, const FIPv4Endpoint& EndPt);
+
+	//void OnDataReceived();
 
 	UFUNCTION(BlueprintCallable, Category = "UDP Receiver")
 		void Reset();
