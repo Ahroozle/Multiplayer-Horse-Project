@@ -29,6 +29,14 @@ enum class ERaceType : uint8
 	RACE_MAX		UMETA(Hidden)
 };
 
+UENUM(BlueprintType)
+enum class EAccessControlType : uint8
+{
+	AC_None			UMETA(DisplayName="None"),
+	AC_Blacklist	UMETA(DisplayName="Blacklist"),
+	AC_Whitelist	UMETA(DisplayName="Whitelist")
+};
+
 /**
  * 
  */
@@ -78,14 +86,11 @@ public:
 		FString Password;
 
 	UPROPERTY(BlueprintReadWrite)
-		bool IsBlacklisting = false;
+		EAccessControlType AccessControlType = EAccessControlType::AC_None;
 	UPROPERTY(BlueprintReadWrite)
-		FString BlacklistPath;
-
+		FString AccessControlListPath;
 	UPROPERTY(BlueprintReadWrite)
-		bool IsWhitelisting = false;
-	UPROPERTY(BlueprintReadWrite)
-		FString WhitelistPath;
+		int ServerPort = 0;
 
 
 	virtual void Init() override;
