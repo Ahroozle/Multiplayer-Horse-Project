@@ -183,5 +183,14 @@ public:
 	UFUNCTION(BlueprintPure)
 		static void StringFromBytes(const TArray<uint8>& InBytes, FString& OutString);
 
+	UFUNCTION(BlueprintPure)
+		static class APlayerController* GetPlayerByUID(UObject* WorldContext, int UID);
+
+	UFUNCTION(BlueprintPure)
+		static class APlayerController* GetPlayerByIP(UObject* WorldContext, FString IP);
+
+	UFUNCTION(BlueprintPure)
+		static FString GetPlayerIP(class APlayerController* Player);
+
 private:
 };

@@ -118,6 +118,28 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
 		bool AddAnimation(TSubclassOf<UChatMessageAnim> Anim);
 	bool AddAnimation_Implementation(TSubclassOf<UChatMessageAnim> Anim) { return false; }
+
+	/*
+		NOTE: the return is a dummy return,
+		it's only here to make sure
+		that the function registers
+		as a function and not an
+		event.
+	*/
+	//UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
+	//	bool SetStartTime(float time);
+	//bool SetStartTime_Implementation(float time) { return false; }
+
+	/*
+		NOTE: the return is a dummy return,
+		it's only here to make sure
+		that the function registers
+		as a function and not an
+		event.
+	*/
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
+		bool AddTime(float time);
+	bool AddTime_Implementation(float time) { return false; }
 };
 
 USTRUCT(BlueprintType)

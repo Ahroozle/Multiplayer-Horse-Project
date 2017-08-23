@@ -5,6 +5,8 @@
 
 #include "StaticFuncLib.h"
 
+#include "Kismet/GameplayStatics.h"
+
 
 void AMPHorsoUDPSender::InitializeSender(const FString& SocketName, const FString& IP_or_Domain, const int Port)
 {
@@ -315,4 +317,56 @@ void UMPHorsoNetLibrary::StringFromBytes(const TArray<uint8>& InBytes, FString& 
 	Reader.Append(InBytes);
 
 	Reader << OutString;
+}
+
+APlayerController* UMPHorsoNetLibrary::GetPlayerByUID(UObject* WorldContext, int UID)
+{
+	if (nullptr != WorldContext)
+	{
+		TArray<AActor*> RetrievedPlayers;
+		UGameplayStatics::GetAllActorsOfClass(WorldContext, APlayerController::StaticClass(), RetrievedPlayers);
+
+		APlayerController* currCasted;
+		for (auto *curr : RetrievedPlayers)
+		{
+			currCasted = Cast<APlayerController>(curr);
+
+			if (currCasted->PlayerState->PlayerId == UID)
+				return currCasted;
+		}
+	}
+	else
+		UStaticFuncLib::Print("UMPHorsoNetLibrary::GetPlayerByUID: World Context was null!", true);
+
+	return nullptr;
+}
+
+APlayerController* UMPHorsoNetLibrary::GetPlayerByIP(UObject* WorldContext, FString IP)
+{
+	if (nullptr != WorldContext)
+	{
+		TArray<AActor*> RetrievedPlayers;
+		UGameplayStatics::GetAllActorsOfClass(WorldContext, APlayerController::StaticClass(), RetrievedPlayers);
+
+		APlayerController* currCasted;
+		for (auto *curr : RetrievedPlayers)
+		{
+			currCasted = Cast<APlayerController>(curr);
+
+			if (currCasted->GetNetConnection()->RemoteAddressToString() == IP)
+				return currCasted;
+		}
+	}
+	else
+		UStaticFuncLib::Print("UMPHorsoNetLibrary::GetPlayerByIP: World Context was null!", true);
+
+	return nullptr;
+}
+
+FString UMPHorsoNetLibrary::GetPlayerIP(class APlayerController* Player)
+{
+	if(nullptr != Player && nullptr != Player->GetNetConnection())
+		return Player->GetNetConnection()->RemoteAddressToString();
+
+	return "";
 }

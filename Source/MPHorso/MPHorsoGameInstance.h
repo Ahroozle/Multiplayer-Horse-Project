@@ -91,6 +91,8 @@ public:
 		FString AccessControlListPath;
 	UPROPERTY(BlueprintReadWrite)
 		int ServerPort = 0;
+	UPROPERTY(BlueprintReadWrite)
+		FString ModListPath;
 
 
 	virtual void Init() override;
@@ -119,4 +121,46 @@ public:
 
 	UFUNCTION(BlueprintPure)
 		UCharacterSaveBase* GetSave() { return CharacterSave; }
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void ReadyForPlay();
+	void ReadyForPlay_Implementation() {}
+
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void KickIP(const FString& IP);
+	void KickIP_Implementation(const FString& IP) {}
+	
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void BanIP(const FString& IP);
+	void BanIP_Implementation(const FString& IP) {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void UnbanIP(const FString& IP);
+	void UnbanIP_Implementation(const FString& IP) {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void OpIP(const FString& IP);
+	void OpIP_Implementation(const FString& IP) {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void UnopIP(const FString& IP);
+	void UnopIP_Implementation(const FString& IP) {}
+
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void KickPlayer(APlayerController* Player);
+	void KickPlayer_Implementation(APlayerController* Player) {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void BanPlayer(APlayerController* Player);
+	void BanPlayer_Implementation(APlayerController* Player) {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void OpPlayer(APlayerController* Player);
+	void OpPlayer_Implementation(APlayerController* Player) {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void UnopPlayer(APlayerController* Player);
+	void UnopPlayer_Implementation(APlayerController* Player) {}
 };
