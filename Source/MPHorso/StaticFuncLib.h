@@ -101,4 +101,5 @@ public:
 
 	UFUNCTION(BlueprintPure)
 		static FString AddSpacesToCamelcase(const FString& InString);
+
 };

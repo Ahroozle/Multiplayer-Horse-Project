@@ -20,6 +20,8 @@ class UCameraComponent;
 class UCharacterSaveBase;
 class UWorldSaveBase;
 
+class URuleBlock;
+
 UENUM(BlueprintType)
 enum class ERaceType : uint8
 {
@@ -49,6 +51,12 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 
 	UPROPERTY()
 		UCharacterSaveBase* CharacterSave;
+
+	UPROPERTY()
+		UWorldSaveBase* WorldSave;
+
+	UPROPERTY()
+		TMap<TSubclassOf<URuleBlock>, URuleBlock*> InstantiatedRuleBlocks;
 
 public:
 
@@ -117,10 +125,16 @@ public:
 		FName GetLocalPlayerName();
 
 	UFUNCTION(BlueprintCallable)
-		void SetSave(UCharacterSaveBase* NewSave) { CharacterSave = NewSave; }
+		void SetCharacterSave(UCharacterSaveBase* NewSave) { CharacterSave = NewSave; }
 
 	UFUNCTION(BlueprintPure)
-		UCharacterSaveBase* GetSave() { return CharacterSave; }
+		UCharacterSaveBase* GetCharacterSave() { return CharacterSave; }
+
+	UFUNCTION(BlueprintCallable)
+		void SetWorldSave(UWorldSaveBase* NewSave) { WorldSave = NewSave; }
+
+	UFUNCTION(BlueprintPure)
+		UWorldSaveBase* GetWorldSave() { return WorldSave; }
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 		void ReadyForPlay();
@@ -163,4 +177,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 		void UnopPlayer(APlayerController* Player);
 	void UnopPlayer_Implementation(APlayerController* Player) {}
+
+	UFUNCTION()
+		URuleBlock* GetRuleBlock(TSubclassOf<URuleBlock> RuleBlockClass);
 };

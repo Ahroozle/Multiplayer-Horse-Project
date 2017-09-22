@@ -4,6 +4,7 @@
 
 #include "GameFramework/SaveGame.h"
 #include "MPHorsoGameInstance.h"
+#include "RuleTypes.h"
 #include "MPHorsoSaveGameTypes.generated.h"
 
 
@@ -61,6 +62,117 @@ public:
 	
 };
 
+
+//UENUM(BlueprintType)
+//enum class ENPC_Type : uint8
+//{
+//	/*
+//		Default NPC!
+//
+//		These ones populate towns and stay in them. They can provide
+//		helpful information (and maybe even quests if I can impl them)!
+//
+//		Most of their knowledge is probably going to be about the town
+//		they live in, but some of them may be retired from a life outside
+//		their current home, or may even have old tales and rumors to share!
+//	*/
+//	NPC_Default			UMETA(DisplayName = "Townsfolk (Default)"),
+//
+//	/*
+//		Healer NPC!
+//
+//		These ones heal you for a price when you ask, and also
+//		take you back to their home (always a hospital or some house
+//		that can function as one) to revive you when you die.
+//
+//		The one that revives you is always the one in the last town
+//		you visited, so be careful where you die.
+//	*/
+//	NPC_Healer			UMETA(DisplayName = "Healer/Reviver"),
+//
+//	/*
+//		Merchant NPC!
+//
+//		These man the shops in towns in order to sell you stuff, but
+//		otherwise function as default NPCs when they're off their work
+//		hours.
+//	*/
+//	NPC_Merchant		UMETA(DisplayName = "Town Merchant/Shopkeep"),
+//
+//	/*
+//		Travelling NPC!
+//
+//		These may run around the entire map whenever they feel like it,
+//		but are otherwise default NPCs. They have a broader knowledge of
+//		the world throughout their travels, so you're more likely to
+//		hear about juicy rumors or sneaky shortcuts across the land from
+//		them, or even by just by watching them wander!
+//	*/
+//	NPC_Traveller		UMETA(DisplayName = "Travelling NPC"),
+//
+//	/*
+//		Travelling Merchant NPC!
+//
+//		These function like travelling NPCs but will also sell you
+//		stuff! Things you may find in these NPCs' inventories are
+//		a more varied bag than your average shop, so be sure to hit
+//		one of them up when you see them just in case they might have
+//		something really neat!
+//	*/
+//	NPC_TravMerch		UMETA(DisplayName = "Travelling Merchant"),
+//
+//
+//
+//
+//	NPC_TYPE_MAX	UMETA(Hidden)
+//};
+
+USTRUCT(BlueprintType)
+struct FNPC_SaveData
+{
+	GENERATED_USTRUCT_BODY();
+
+
+	//UPROPERTY(BlueprintReadWrite)
+	//	ENPC_Type NPCType;
+
+	UPROPERTY(BlueprintReadWrite)
+		FVector Location;
+
+	// TODO: some way to assign homes by names or some other way?
+	UPROPERTY(BlueprintReadWrite)
+		FName HomeName;
+
+
+	// personality parts to reconstruct the NPC's behavior.
+
+	UPROPERTY(BlueprintReadWrite)
+		FName NPC_Name;
+
+	UPROPERTY(BlueprintReadWrite)
+		TArray<TSubclassOf<URuleBlock>> SavedRules;
+
+	UPROPERTY(BlueprintReadWrite)
+		FRuleQuery Memories;
+
+};
+
+USTRUCT(BlueprintType)
+struct FWeatherSaveData
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(BlueprintReadWrite)
+		TSubclassOf<class AWeatherActor> WeatherClass;
+
+	UPROPERTY(BlueprintReadWrite)
+		FVector CurrentPosition;
+
+	UPROPERTY(BlueprintReadWrite)
+		FVector Direction;
+
+};
+
 /*
 	SaveGame class for worlds
 
@@ -79,6 +191,29 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
 		FString WorldName;
+
+	/*
+		The state of the world in query form!
+
+		This gets filled out upon the world being
+		created / generated / whatever and is of
+		course modified when certain events happen.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Save")
+		FRuleQuery WorldState;
+
+	/*
+		Data pertaining to every created NPC. This is
+		what should take up the bulk of the memory used.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Save")
+		TArray<FNPC_SaveData> NPCData;
+
+	/*
+		Data saving the current weather.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Save")
+		TArray<FWeatherSaveData> WeatherData;
 	
 
 	virtual FString GetGeneratedFileName() const override;

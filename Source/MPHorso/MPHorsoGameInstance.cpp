@@ -44,3 +44,17 @@ FName UMPHorsoGameInstance::GetLocalPlayerName()
 
 	else return FName(EName::NAME_None);
 }
+
+URuleBlock* UMPHorsoGameInstance::GetRuleBlock(TSubclassOf<URuleBlock> RuleBlockClass)
+{
+	URuleBlock* found = InstantiatedRuleBlocks.FindRef(RuleBlockClass);
+
+	if (nullptr == found)
+	{
+		found = NewObject<URuleBlock>(this, RuleBlockClass);
+		found->Prep();
+		InstantiatedRuleBlocks.Add(RuleBlockClass, found);
+	}
+
+	return found;
+}
