@@ -58,25 +58,42 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 		FTimerHandle TimerHandle;
 
+	UFunction* RetrievedRotFunc;
+	UFloatProperty* RetrievedNextZoom;
+
 };
 
-//UCLASS()
-//class MPHORSO_API AMPHorsoCameraGuideTypes : public AActor
-//{
-//	GENERATED_BODY()
-//	
-//public:	
-//	// Sets default values for this actor's properties
-//	AMPHorsoCameraGuideTypes();
-//
-//protected:
-//	// Called when the game starts or when spawned
-//	virtual void BeginPlay() override;
-//
-//public:	
-//	// Called every frame
-//	virtual void Tick(float DeltaTime) override;
-//
-//	
-//	
-//};
+UCLASS(BlueprintType)
+class MPHORSO_API AMPHorsoCameraConformer : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	// Sets default values for this actor's properties
+	AMPHorsoCameraConformer(const FObjectInitializer& _init);
+
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+
+public:
+	virtual void OnConstruction(const FTransform& Transform) override;
+
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
+	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
+	virtual void NotifyActorEndOverlap(AActor* OtherActor) override;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+		APawn* StoredObserver;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName ConformComponentName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+		UShapeComponent* ConformShape;
+
+	UObjectProperty* RetrievedConformTo;
+
+};

@@ -88,6 +88,26 @@ void AMPHorsoCameraGuide::NotifyActorBeginOverlap(AActor* OtherActor)
 		{
 			StoredObserver = CastedToPawn;
 
+			RetrievedRotFunc = StoredObserver->FindFunction("RotCamDirect");
+
+			if (nullptr == RetrievedRotFunc)
+				UStaticFuncLib::Print("AMPHorsoCameraGuide::NotifyActorBeginOverlap: Couldn't find ObserverBP::RotCamDirect! No rotation will happen.", true);
+
+			RetrievedNextZoom = nullptr;
+			for (TFieldIterator<UFloatProperty> iter(StoredObserver->GetClass()); iter; ++iter)
+			{
+				//UStaticFuncLib::Print(iter->GetNameCPP(), true);
+
+				if (iter->GetNameCPP() == "NextZoomFactor")
+				{
+					RetrievedNextZoom = *iter;
+					break;
+				}
+			}
+
+			if (nullptr == RetrievedNextZoom)
+				UStaticFuncLib::Print("AMPHorsoCameraGuide::NotifyActorBeginOverlap: Couldn't find ObserverBP::NextZoomFactor! No zooming will happen.", true);
+
 			GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &AMPHorsoCameraGuide::GuideCamera, 0.01f, true);
 		}
 	}
@@ -130,8 +150,6 @@ void AMPHorsoCameraGuide::GuideCamera()
 		UWeightedArrowComponent* castedStart = Cast<UWeightedArrowComponent>(Arrows[0]);
 		UWeightedArrowComponent* castedEnd = Cast<UWeightedArrowComponent>(Arrows[1]);
 
-		// TODO FIX HOW WEIGHTING WORKS
-
 		float fromstartdist = (ClosestPoint - StartLoc).Size();
 		float wholedist = (EndLoc - StartLoc).Size();
 		float startweight = (nullptr == castedStart ? 1 : FMath::Max(castedStart->Weight, 0.00001f));
@@ -156,36 +174,121 @@ void AMPHorsoCameraGuide::GuideCamera()
 
 	FRotator FinalRot = FMath::RInterpTo(StoredObserver->GetActorRotation(), ResultRot, GetWorld()->GetDeltaSeconds(), 4.0f);
 
-	UFunction* Rotfunc = StoredObserver->FindFunction("RotCamDirect");
-
-	if (nullptr != Rotfunc)
+	if (nullptr != RetrievedRotFunc)
 	{
 		FRotator Parm = FinalRot;
 		
-		StoredObserver->ProcessEvent(Rotfunc, &Parm);
+		StoredObserver->ProcessEvent(RetrievedRotFunc, &Parm);
 	}
-	else
-		UStaticFuncLib::Print("AMPHorsoCameraGuide::GuideCamera: Couldn't find ObserverBP::RotCamDirect! No rotation will happen.");
 
 	StoredObserver->SetActorRotation(FinalRot);
 
 
-
-	for (TFieldIterator<UFloatProperty> iter(StoredObserver->GetClass()); iter; ++iter)
+	if (nullptr != RetrievedNextZoom)
 	{
-		//UStaticFuncLib::Print(iter->GetNameCPP(), true);
+		float CurrZoomVal = RetrievedNextZoom->GetPropertyValue_InContainer(StoredObserver);
+		float NewZoomVal = FMath::FInterpTo(CurrZoomVal, ResultScale.GetMax(), GetWorld()->GetDeltaSeconds(), 4);
 
-		if (iter->GetNameCPP() == "NextZoomFactor")
-		{
-			float CurrZoomVal = iter->GetPropertyValue_InContainer(StoredObserver);
-			float NewZoomVal = FMath::FInterpTo(CurrZoomVal, ResultScale.GetMax(), GetWorld()->GetDeltaSeconds(), 4);
-
-			iter->SetPropertyValue_InContainer(StoredObserver, NewZoomVal);
-			break;
-		}
+		RetrievedNextZoom->SetPropertyValue_InContainer(StoredObserver, NewZoomVal);
 	}
 
 
 	if (Arrows.Num() < 2 && Arrows[0]->GetComponentRotation().Equals(StoredObserver->GetActorRotation(),0.01f))
 		GetWorld()->GetTimerManager().ClearTimer(TimerHandle);
+}
+
+
+// Sets default values
+AMPHorsoCameraConformer::AMPHorsoCameraConformer(const FObjectInitializer& _init) : Super(_init)
+{
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	PrimaryActorTick.bCanEverTick = false;
+
+	RootComponent = _init.CreateDefaultSubobject<USceneComponent>(this, TEXT("RootComponent"));
+
+}
+
+// Called when the game starts or when spawned
+void AMPHorsoCameraConformer::BeginPlay()
+{
+	Super::BeginPlay();
+
+}
+
+void AMPHorsoCameraConformer::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	for (auto &currComp : this->GetComponents())
+	{
+		if (*currComp->GetName() == ConformComponentName)
+		{
+			ConformShape = Cast<UShapeComponent>(currComp);
+
+			if (nullptr == ConformShape)
+				UStaticFuncLib::Print("MPHorsoCameraConformer::OnConstruction: Found Component \'" +
+									  ConformComponentName.ToString() +
+									  "\', but it wasn't a ShapeComponent!", 
+									  true);
+
+			return;
+		}
+	}
+
+	UStaticFuncLib::Print("MPHorsoCameraConformer::OnConstruction: Couldn't find a component named \'" +
+						  ConformComponentName.ToString() +
+						  "\'!",
+						  true);
+
+}
+
+// Called every frame
+void AMPHorsoCameraConformer::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+}
+
+void AMPHorsoCameraConformer::NotifyActorBeginOverlap(AActor* OtherActor)
+{
+	AActor* OtherOwner = OtherActor->GetOwner();
+
+	if (nullptr != OtherOwner)
+	{
+		APawn* CastedToPawn = Cast<APawn>(OtherOwner);
+
+		if (nullptr != CastedToPawn && CastedToPawn->GetController() == UGameplayStatics::GetPlayerController(this, 0))
+		{
+			StoredObserver = CastedToPawn;
+
+			RetrievedConformTo = nullptr;
+			for (TFieldIterator<UObjectProperty> iter(StoredObserver->GetClass()); iter; ++iter)
+			{
+				//UStaticFuncLib::Print(iter->GetNameCPP(), true);
+
+				if (iter->GetNameCPP() == "ConformTo")
+				{
+					RetrievedConformTo = *iter;
+					break;
+				}
+			}
+
+			if (nullptr != RetrievedConformTo)
+				RetrievedConformTo->SetPropertyValue_InContainer(StoredObserver, ConformShape);
+			else
+				UStaticFuncLib::Print("AMPHorsoCameraGuide::NotifyActorBeginOverlap: Couldn't find ObserverBP::NextZoomFactor! No zooming will happen.", true);
+
+		}
+	}
+}
+
+void AMPHorsoCameraConformer::NotifyActorEndOverlap(AActor* OtherActor)
+{
+	AActor* OtherOwner = OtherActor->GetOwner();
+
+	if (nullptr != OtherOwner && OtherOwner == StoredObserver)
+	{
+		if (nullptr != RetrievedConformTo)
+			RetrievedConformTo->SetPropertyValue_InContainer(StoredObserver, nullptr);
+	}
 }
