@@ -9,6 +9,8 @@
 
 #include "MPHorsoSaveGameTypes.h"
 
+#include "MPHorsoMusicManager.h"
+
 
 void UMPHorsoGameInstance::Init()
 {
@@ -57,4 +59,17 @@ URuleBlock* UMPHorsoGameInstance::GetRuleBlock(TSubclassOf<URuleBlock> RuleBlock
 	}
 
 	return found;
+}
+
+AMPHorsoMusicManager* UMPHorsoGameInstance::GetMusicManager()
+{
+	if (!IsValid(SpawnedMusicManager))
+	{
+		SpawnedMusicManager = GetWorld()->SpawnActor<AMPHorsoMusicManager>(MusicManagerClass, FTransform(FVector::ZeroVector));
+
+		if (!IsValid(SpawnedMusicManager))
+			UStaticFuncLib::Print("UMPHorsoGameInstance::GetMusicManager: Failed to spawn the music manager!", true);
+	}
+
+	return SpawnedMusicManager;
 }

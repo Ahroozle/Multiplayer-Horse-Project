@@ -22,6 +22,8 @@ class UWorldSaveBase;
 
 class URuleBlock;
 
+class AMPHorsoMusicManager;
+
 UENUM(BlueprintType)
 enum class ERaceType : uint8
 {
@@ -58,6 +60,10 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 	UPROPERTY()
 		TMap<TSubclassOf<URuleBlock>, URuleBlock*> InstantiatedRuleBlocks;
 
+	UPROPERTY()
+		AMPHorsoMusicManager* SpawnedMusicManager = nullptr;
+
+
 public:
 
 	UPROPERTY(EditDefaultsOnly)
@@ -82,6 +88,9 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 		TArray<TSubclassOf<UWorldSaveBase>> PreviousWorldSaveTypes;
 
+	UPROPERTY(EditDefaultsOnly)
+		TSubclassOf<AMPHorsoMusicManager> MusicManagerClass;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<FString> RuntimeErrorList;
 
@@ -101,6 +110,15 @@ public:
 		int ServerPort = 0;
 	UPROPERTY(BlueprintReadWrite)
 		FString ModListPath;
+
+	UPROPERTY(BlueprintReadWrite)
+		float MasterVolume = 1.0f;
+	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "BGM Volume"))
+		float BGMVolume = 1.0f;
+	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "Ambience Volume"))
+		float AmbiVolume = 1.0f;
+	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "SFX Volume"))
+		float SFXVolume = 1.0f;
 
 
 	virtual void Init() override;
@@ -180,4 +198,7 @@ public:
 
 	UFUNCTION()
 		URuleBlock* GetRuleBlock(TSubclassOf<URuleBlock> RuleBlockClass);
+
+	UFUNCTION(BlueprintPure)
+		AMPHorsoMusicManager* GetMusicManager();
 };

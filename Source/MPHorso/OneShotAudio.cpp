@@ -3,6 +3,9 @@
 #include "MPHorso.h"
 #include "OneShotAudio.h"
 
+#include "StaticFuncLib.h"
+#include "MPHorsoGameInstance.h"
+
 //#include "Kismet/KismetSystemLibrary.h"
 
 
@@ -31,6 +34,16 @@ void AOneShotAudio::Init(USoundCue* sound, float pitch)
 
 	audioComp->SetSound(sound);
 	audioComp->SetPitchMultiplier(pitch);
+
+	{
+		UMPHorsoGameInstance* gameInst = UStaticFuncLib::RetrieveGameInstance(this);
+		if (nullptr != gameInst)
+			audioComp->SetVolumeMultiplier(gameInst->MasterVolume * gameInst->SFXVolume);
+		else
+			UStaticFuncLib::Print("AOneShotAudio::Init: Couldn't retrieve the game instance! "
+								  "Sound effect volume will not be changed to fit settings as a result.", true);
+	}
+
 	audioComp->Play();
 
 	audioComp->OnAudioFinished.AddDynamic(this, &AOneShotAudio::Die);
