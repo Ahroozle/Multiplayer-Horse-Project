@@ -43,6 +43,12 @@ FString UWorldSaveBase::GetGeneratedFileName() const
 }
 
 
+FWorldSettingsData USaveGameHelperLibrary::MinSettings;
+bool USaveGameHelperLibrary::MinSettingsSet = false;
+
+FWorldSettingsData USaveGameHelperLibrary::MaxSettings;
+bool USaveGameHelperLibrary::MaxSettingsSet = false;
+
 void USaveGameHelperLibrary::GetSaveNames(TArray<FString>& OutCharacterFileNames, TArray<FString>& OutWorldFileNames)
 {
 	// took this solution from https://answers.unrealengine.com/questions/145598/is-there-a-way-to-get-all-savegames-in-bp.html , third down.
@@ -269,4 +275,70 @@ UMPHorsoSaveBase* USaveGameHelperLibrary::SaveUpdateHelper(UMPHorsoGameInstance*
 	}
 
 	return CurrNewSave;
+}
+
+FWorldSettingsData& USaveGameHelperLibrary::GetWorldSettingsMinimums()
+{
+	if (!MinSettingsSet)
+	{
+		MinSettingsSet = true;
+
+		MinSettings.WeatherIntensity = { 0,0 };
+		MinSettings.WeatherFrequency = 1;
+		MinSettings.EnemyDensity = 0;
+		MinSettings.EnemyStrength = .5f;
+		MinSettings.EnemyViciousness = 1;
+		MinSettings.LootStinginess = .5;
+		MinSettings.RandomSpawnLocation = false;
+		MinSettings.NoSavior = false;
+		MinSettings.Alone = false;
+
+		float EHDummy, WHDummy, FHDummy;
+		MinSettings.TotalHostility = CalculateHostilityPercentage(MinSettings, EHDummy, WHDummy, FHDummy);
+	}
+
+	return MinSettings;
+}
+
+FWorldSettingsData& USaveGameHelperLibrary::GetWorldSettingsMaximums()
+{
+	if (!MaxSettingsSet)
+	{
+		MaxSettingsSet = true;
+
+		MaxSettings.WeatherIntensity = { 5,5 };
+		MaxSettings.WeatherFrequency = 5;
+		MaxSettings.EnemyDensity = 5;
+		MaxSettings.EnemyStrength = 3;
+		MaxSettings.EnemyViciousness = 3;
+		MaxSettings.LootStinginess = 5;
+		MaxSettings.RandomSpawnLocation = true;
+		MaxSettings.NoSavior = true;
+		MaxSettings.Alone = true;
+
+		float EHDummy, WHDummy, FHDummy;
+		MaxSettings.TotalHostility = CalculateHostilityPercentage(MaxSettings, EHDummy, WHDummy, FHDummy);
+	}
+
+	return MaxSettings;
+}
+
+float USaveGameHelperLibrary::CalculateHostilityPercentage(const FWorldSettingsData& WorldData, float& EnemyHostility, float& WeatherHostility, float& FateHostility)
+{
+	EnemyHostility = WorldData.EnemyDensity * WorldData.EnemyStrength * WorldData.EnemyViciousness;
+	WeatherHostility = ((WorldData.WeatherIntensity.X + WorldData.WeatherIntensity.Y) / 2.0f) * WorldData.WeatherFrequency;
+	FateHostility = (WorldData.RandomSpawnLocation ? 10 : 0) + (WorldData.NoSavior ? 10 : 0) + (WorldData.Alone ? 10 : 0);
+
+	return (EnemyHostility + WeatherHostility + FateHostility) * WorldData.LootStinginess;
+}
+
+float USaveGameHelperLibrary::GetHostilityLevel(const FWorldSettingsData& WorldData)
+{
+	return FMath::Log2(UStaticFuncLib::NearestPowerOfTwo(WorldData.TotalHostility));
+}
+
+void USaveGameHelperLibrary::CalculateAndApplyHostility(UPARAM(Ref) FWorldSettingsData& WorldData)
+{
+	float EHDummy, WHDummy, FHDummy;
+	WorldData.TotalHostility = CalculateHostilityPercentage(WorldData, EHDummy, WHDummy, FHDummy);
 }

@@ -57,6 +57,29 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
 		TMap<FName, FLinearColor> ColorScheme;
 
+	/*
+		The name of the difficulty the player is at!
+
+		list of them is:
+			- Default (White Player Name)
+					Player drops half their cash on death.
+			- Midcore (Cyan Player Name)
+					Player drops all their items on death.
+			- Semi-Hardcore (Purple Player Name)
+					Player drops all their items on death.
+					Permadeath if not within (X) rooms of
+					a hospital.
+			- Hardcore (Red Player Name)
+					Player drops all their items on death.
+					Permadeath regardless of proximity to
+					hospitals.
+
+		Items/Cash dropped on death can be navigated back to
+		and picked up.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		FName Difficulty = "Default";
+
 
 	virtual FString GetGeneratedFileName() const override;
 	
@@ -173,6 +196,108 @@ struct FWeatherSaveData
 
 };
 
+USTRUCT(BlueprintType)
+struct FWorldSettingsData
+{
+	GENERATED_USTRUCT_BODY();
+
+	/*
+		The type of world! This basically just governs which
+		static world to load into.
+
+		NOTE: "Combined" is explicitly saved for the combined
+		world mode. Don't use it to reference static worlds!
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		FName WorldType;
+
+	/*
+		The range of intensities weather can be in this world.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		FIntPoint WeatherIntensity = { 1, 3 };
+
+	/*
+		How often does weather happen?
+		Directly correlates to how many storms there are on
+		the map at any given time.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		int WeatherFrequency = 1;
+
+	/*
+		Enemy Density Multiplier. This determines how many enemies
+		there are at any given point in the map and may even cause
+		certain spawners to start or stop being used to more evenly
+		distribute the lack or surplus of foes.
+
+		NOTE: Setting this to zero also gets rid of the bosses!
+			  This is intended to allow it to serve as a peaceful-
+			  type mode for those who aren't into combat. The focus
+			  becomes more exploration-oriented as a result.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		float EnemyDensity = 1;
+
+	/*
+		Enemy Strength Multiplier. This determines how strong your
+		foes are.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		float EnemyStrength = 1;
+
+	/*
+		Enemy Viciousness Multiplier. This determines spawn rates
+		for higher-powered enemies and whether or not enemies use
+		more vicious actions (like debuff-causing attacks or looting
+		your corpse).
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		float EnemyViciousness = 1;
+
+	/*
+		Loot Stinginess Divider. This determines how hard literally
+		getting anything is. Applies to both enemies and chests.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		float LootStinginess = 1;
+
+	/*
+		Spawn in the default location or a random one?
+		If NoSavior is enabled you can literally spawn anywhere
+		on the map that is considered out in the open. Otherwise
+		you will only spawn near towns so that the respective
+		nurse can save you.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		bool RandomSpawnLocation = false;
+
+	/*
+		Does a nurse come to save you when you first land?
+		This dramatically alters how the game starts because
+		you spawn in with no health left into a potentially
+		hostile area of the map.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		bool NoSavior = false;
+
+	/*
+		Don't spawn any NPCs? This literally means there are no
+		ponies to help you. Hospitals do not work because there
+		are no nurses. Merchants don't exist.
+		Obviously means NoSavior is on.
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		bool Alone = false;
+
+	/*
+		Total hostility for easy reference
+	*/
+	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
+		float TotalHostility;
+
+};
+
 /*
 	SaveGame class for worlds
 
@@ -186,11 +311,14 @@ UCLASS(abstract, Blueprintable)
 class MPHORSO_API UWorldSaveBase : public UMPHorsoSaveBase
 {
 	GENERATED_BODY()
-	
+
 public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
 		FString WorldName;
+
+	UPROPERTY(BlueprintReadWrite, Category = "World Save")
+		FWorldSettingsData WorldSettings;
 
 	/*
 		The state of the world in query form!
@@ -226,6 +354,12 @@ class MPHORSO_API USaveGameHelperLibrary : public UObject
 {
 	GENERATED_BODY()
 	
+	static FWorldSettingsData MinSettings;
+	static bool MinSettingsSet;
+
+	static FWorldSettingsData MaxSettings;
+	static bool MaxSettingsSet;
+
 public:
 	
 	
@@ -240,6 +374,20 @@ public:
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Unique ID For World Save"))
 		static void GenUIDForWSave(UWorldSaveBase* NewSave, const TArray<UWorldSaveBase*>& OtherExistingSaves);
+
+	UFUNCTION(BlueprintPure)
+		static FWorldSettingsData& GetWorldSettingsMinimums();
+	UFUNCTION(BlueprintPure)
+		static FWorldSettingsData& GetWorldSettingsMaximums();
+
+	UFUNCTION(BlueprintPure)
+		static float CalculateHostilityPercentage(const FWorldSettingsData& WorldData, float& EnemyHostility, float& WeatherHostility, float& FateHostility);
+	
+	UFUNCTION(BlueprintPure)
+		static float GetHostilityLevel(const FWorldSettingsData& WorldData);
+
+	UFUNCTION(BlueprintCallable)
+		static void CalculateAndApplyHostility(UPARAM(Ref) FWorldSettingsData& WorldData);
 
 private:
 

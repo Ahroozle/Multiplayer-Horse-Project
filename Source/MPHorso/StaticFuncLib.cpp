@@ -17,6 +17,8 @@
 
 #include "Developer/DesktopPlatform/Public/DesktopPlatformModule.h"
 
+#include "RHI.h"
+
 
 #if WITH_EDITOR
 #define USTATICFUNCLIB_ALLOW_PRINT_TO_SCREEN true
@@ -398,4 +400,58 @@ FString UStaticFuncLib::AddSpacesToCamelcase(const FString& InString)
 		NewStr += *iter;
 	}
 	return NewStr;
+}
+
+float UStaticFuncLib::MapLinearRangetoExponentialRange(float Value, FVector2D LinearRange, FVector2D ExponentialRange, float Base)
+{
+	return ((ExponentialRange.Y - ExponentialRange.X) - FMath::LogX(Base, (LinearRange.Y - LinearRange.X) / (Value - LinearRange.X))) + ExponentialRange.X;
+}
+
+float UStaticFuncLib::NearestPowerOfTwo(float Num)
+{
+	return FMath::Pow(2, FMath::RoundToFloat(FMath::Log2(Num)));
+}
+
+float UStaticFuncLib::NextPowerOfTwo(float Num)
+{
+	return FMath::Pow(2, FMath::CeilToFloat(FMath::Log2(Num)));
+}
+
+float UStaticFuncLib::PreviousPowerOfTwo(float Num)
+{
+	return FMath::Pow(2, FMath::FloorToFloat(FMath::Log2(Num)));
+}
+
+FString UStaticFuncLib::ToRomanNumerals(int Number)
+{
+	// TODO IMPL
+	TArray<FString> RomanArr =
+	{
+		"M","CM","D","CD","C","XC","L","XL","X","IX","V","IV","I"
+	};
+
+	TArray<int> ValueArr =
+	{
+		1000,900,500,400,100,90,50,40,10,9,5,4,1
+	};
+
+	FString ResultString;
+
+	for (int currNumeral = 0; currNumeral < RomanArr.Num(); ++currNumeral)
+	{
+		while (Number%ValueArr[currNumeral] < Number)
+		{
+			ResultString += RomanArr[currNumeral];
+			Number -= ValueArr[currNumeral];
+		}
+	}
+
+	return ResultString;
+}
+
+bool UStaticFuncLib::LostFocus(APlayerController* Player)
+{
+	ULocalPlayer* LocPlayer = Player->GetLocalPlayer();
+
+	return !LocPlayer->ViewportClient->Viewport || !LocPlayer->ViewportClient->Viewport->IsForegroundWindow();
 }

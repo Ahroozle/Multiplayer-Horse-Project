@@ -102,4 +102,25 @@ public:
 	UFUNCTION(BlueprintPure)
 		static FString AddSpacesToCamelcase(const FString& InString);
 
+	/*
+		Maps the given Value from within the range of LinearRange to within the range of ExponentialRange,
+		Along an exponential curve defined by Base^X.
+	*/
+	UFUNCTION(BlueprintPure)
+		static float MapLinearRangetoExponentialRange(float Value, FVector2D LinearRange, FVector2D ExponentialRange, float Base);
+
+	UFUNCTION(BlueprintPure)
+		static float NearestPowerOfTwo(float Num);
+
+	UFUNCTION(BlueprintPure)
+		static float NextPowerOfTwo(float Num);
+
+	UFUNCTION(BlueprintPure)
+		static float PreviousPowerOfTwo(float Num);
+
+	UFUNCTION(BlueprintPure)
+		static FString ToRomanNumerals(int Number);
+
+	UFUNCTION(BlueprintPure)
+		static bool LostFocus(APlayerController* Player);
 };

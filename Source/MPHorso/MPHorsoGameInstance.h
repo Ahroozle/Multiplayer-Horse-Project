@@ -91,6 +91,13 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 		TSubclassOf<AMPHorsoMusicManager> MusicManagerClass;
 
+	/*
+		Names of World Types, paired with
+		the string name of the world to load.
+	*/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TMap<FName, FString> WorldTypes;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<FString> RuntimeErrorList;
 
@@ -111,6 +118,9 @@ public:
 	UPROPERTY(BlueprintReadWrite)
 		FString ModListPath;
 
+
+	// Volume Settings
+
 	UPROPERTY(BlueprintReadWrite)
 		float MasterVolume = 1.0f;
 	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "BGM Volume"))
@@ -119,6 +129,29 @@ public:
 		float AmbiVolume = 1.0f;
 	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "SFX Volume"))
 		float SFXVolume = 1.0f;
+
+
+	// General Settings
+
+	UPROPERTY(BlueprintReadWrite)
+		bool Autopause = false;
+	UPROPERTY(BlueprintReadWrite)
+		bool PasswordsVisible = false;
+	UPROPERTY(BlueprintReadWrite)
+		float ServerTimeout = 10.0f;
+	UPROPERTY(BlueprintReadWrite)
+		bool AdvancedNPCInteraction = false;
+
+
+	// Visual Settings
+
+	/*
+		in XxY[f] format for use in r.SetRes
+		As a result covers both resolution and
+		fullscreen
+	*/
+	UPROPERTY(BlueprintReadWrite)
+		FString Resolution;
 
 
 	virtual void Init() override;
