@@ -80,6 +80,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
 		FName Difficulty = "Default";
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		float NativeStamina = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		float TemporaryStamina = 0.0f;
+
 
 	virtual FString GetGeneratedFileName() const override;
 	

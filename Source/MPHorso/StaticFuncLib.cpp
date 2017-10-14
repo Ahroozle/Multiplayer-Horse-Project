@@ -17,7 +17,7 @@
 
 #include "Developer/DesktopPlatform/Public/DesktopPlatformModule.h"
 
-#include "RHI.h"
+//#include "RHI.h"
 
 
 #if WITH_EDITOR

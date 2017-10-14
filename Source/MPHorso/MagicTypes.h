@@ -75,6 +75,10 @@ public:
 		void GetArgPackage(FNetworkSendableSpellArgs& GeneratedPackage);
 	void GetArgPackage_Implementation(FNetworkSendableSpellArgs& GeneratedPackage) {}
 
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Spell UI")
+		float GetCurrentStaminaCost();
+	float GetCurrentStaminaCost_Implementation() { return 0; }
+
 	// SpecialUse should be defined on a per-UI basis as a way for non-player entities to use spells
 	// in other ways without having to interact with player feedback classes they don't need.
 };
