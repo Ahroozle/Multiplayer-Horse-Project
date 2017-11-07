@@ -455,3 +455,11 @@ bool UStaticFuncLib::LostFocus(APlayerController* Player)
 
 	return !LocPlayer->ViewportClient->Viewport || !LocPlayer->ViewportClient->Viewport->IsForegroundWindow();
 }
+
+float UStaticFuncLib::CalcWaterSurface(FVector Point, float Scale, float Time)
+{
+	float z = 0.0;
+	z += (sin(Point.X * 1.0 / Scale + Time * 1.0) + sin(Point.X * 2.3 / Scale + Time * 1.5) + sin(Point.X * 3.3 / Scale + Time * 0.4)) / 3.0;
+	z += (sin(Point.Y * 0.2 / Scale + Time * 1.8) + sin(Point.Y * 1.8 / Scale + Time * 1.8) + sin(Point.Y * 2.8 / Scale + Time * 0.8)) / 3.0;
+	return z;
+}

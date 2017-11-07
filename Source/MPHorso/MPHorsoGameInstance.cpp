@@ -11,10 +11,13 @@
 
 #include "MPHorsoMusicManager.h"
 
+#include "IPluginManager.h"
+
 
 void UMPHorsoGameInstance::Init()
 {
 	GEngine->OnNetworkFailure().AddUObject(this, &UMPHorsoGameInstance::OnNetFail);
+	LoadModContent();
 }
 
 void UMPHorsoGameInstance::OnNetFail(UWorld *World, UNetDriver *NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString)
@@ -72,4 +75,38 @@ AMPHorsoMusicManager* UMPHorsoGameInstance::GetMusicManager()
 	}
 
 	return SpawnedMusicManager;
+}
+
+void UMPHorsoGameInstance::LoadModContent()
+{
+	// IN CASE OF STUPIDITY BREAK COMMENT GLASS
+	// IFileManager::Get().FindFilesRecursive(MapFiles, FPaths::GameContentDir(), TEXT(".umap"), true, false);
+
+	TArray<TSharedRef<IPlugin>> FoundPlugs = IPluginManager::Get().GetDiscoveredPlugins();
+
+	for (TSharedRef<IPlugin> &currPlug : FoundPlugs)
+	{
+		//UStaticFuncLib::Print(currPlug->GetName());
+		const FPluginDescriptor& CurrDesc = currPlug->GetDescriptor();
+		if (CurrDesc.Category == "User Mod")
+		{
+			RetrievedMods.Add(*currPlug->GetName(), currPlug);
+
+			if (currPlug->CanContainContent())
+			{
+				UObjectLibrary* ObjLib = UObjectLibrary::CreateLibrary(UMPHorsoWorldType::StaticClass(), true, true);
+				ObjLib->LoadAssetDataFromPath(currPlug->GetMountedAssetPath());
+
+				TArray<FAssetData> RetrievedAssetDatas;
+				ObjLib->GetAssetDataList(RetrievedAssetDatas);
+
+				for (FAssetData& currAsset : RetrievedAssetDatas)
+				{
+					TSubclassOf<UMPHorsoWorldType> AsSubOf(currAsset.GetClass());
+					if (nullptr != *AsSubOf)
+						WorldTypes.Add(AsSubOf.GetDefaultObject()->WorldTypeName, AsSubOf);
+				}
+			}
+		}
+	}
 }

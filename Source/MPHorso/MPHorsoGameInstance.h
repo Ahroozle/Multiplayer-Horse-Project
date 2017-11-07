@@ -41,6 +41,23 @@ enum class EAccessControlType : uint8
 	AC_Whitelist	UMETA(DisplayName="Whitelist")
 };
 
+UCLASS(Blueprintable)
+class MPHORSO_API UMPHorsoWorldType : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		FName WorldTypeName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		FString MapToLoad;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (MultiLine = true))
+		FString Description;
+};
+
 /**
  * 
  */
@@ -63,6 +80,7 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 	UPROPERTY()
 		AMPHorsoMusicManager* SpawnedMusicManager = nullptr;
 
+	TMap<FName, TSharedRef<class IPlugin>> RetrievedMods;
 
 public:
 
@@ -96,7 +114,7 @@ public:
 		the string name of the world to load.
 	*/
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		TMap<FName, FString> WorldTypes;
+		TMap<FName, TSubclassOf<UMPHorsoWorldType>> WorldTypes;//TMap<FName, FString> WorldTypes;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<FString> RuntimeErrorList;
@@ -234,4 +252,7 @@ public:
 
 	UFUNCTION(BlueprintPure)
 		AMPHorsoMusicManager* GetMusicManager();
+
+	UFUNCTION()
+		void LoadModContent();
 };

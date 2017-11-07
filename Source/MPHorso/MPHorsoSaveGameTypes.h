@@ -5,6 +5,7 @@
 #include "GameFramework/SaveGame.h"
 #include "MPHorsoGameInstance.h"
 #include "RuleTypes.h"
+#include "MPHorsoItemTypes.h"
 #include "MPHorsoSaveGameTypes.generated.h"
 
 
@@ -32,6 +33,22 @@ public:
 		UMPHorsoSaveBase* GenerateNextVersion() const;
 	virtual UMPHorsoSaveBase* GenerateNextVersion_Implementation() const { return nullptr; }
 
+};
+
+
+USTRUCT(BlueprintType)
+struct FInvSaveData
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<FName> Prefixes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TSubclassOf<class UMPHorsoItemBase> ItemType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		int Stack;
 };
 
 /*
@@ -85,6 +102,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
 		float TemporaryStamina = 0.0f;
 
+	// Hotbar, then Main Inv, then Saddlebags.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		TArray<FInvSaveData> Inventory;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save", meta = (ClampMin = "0.0", ClampMax = "2.0"))
+		int NumSaddleBags;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		TArray<FName> AllSpells;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		TArray<FName> EquippedSpells;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		FString Notes;
 
 	virtual FString GetGeneratedFileName() const override;
 	

@@ -123,4 +123,7 @@ public:
 
 	UFUNCTION(BlueprintPure)
 		static bool LostFocus(APlayerController* Player);
+
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Calculate Global Water Surface At Point"))
+		static float CalcWaterSurface(FVector Point, float Scale, float Time);
 };

@@ -7,6 +7,8 @@
 
 #include "StaticFuncLib.h"
 
+#include "OneShotAudio.h"
+
 
 void USkeletalSpriteFlipbookComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
@@ -122,7 +124,22 @@ void USkeletalSpriteFlipbookComponent::PlaySoundProxy(class USoundCue* sound, fl
 }
 void USkeletalSpriteFlipbookComponent::MulticastPlaySoundProxy_Implementation(class USoundCue* sound, float pitch)
 {
-	UStaticFuncLib::PlaySound(this, GetComponentTransform(), sound, pitch);
+	auto SpawnedAud = UStaticFuncLib::PlaySound(this, GetOwner()->GetActorTransform(), sound, pitch);
+
+	APawn* SuperOwner = Cast<APawn>(GetOwner()->GetOwner());
+	if (nullptr == SuperOwner || SuperOwner->GetController() != UGameplayStatics::GetPlayerController(this, 0))
+	{
+		FSoundAttenuationSettings NewAtten;
+
+		NewAtten.bAttenuateWithLPF = true;
+		NewAtten.bEnableOcclusion = true;
+		NewAtten.DistanceAlgorithm = EAttenuationDistanceModel::LogReverse;
+
+		SpawnedAud->audioComp->AdjustAttenuation(NewAtten);
+		SpawnedAud->audioComp->Play();
+
+		SpawnedAud->AttachToActor(GetOwner(), FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::KeepRelative, EAttachmentRule::KeepRelative, true));
+	}
 }
 void USkeletalSpriteFlipbookComponent::ServerPlaySoundProxy_Implementation(class USoundCue* sound, float pitch) { MulticastPlaySoundProxy(sound, pitch); }
 bool USkeletalSpriteFlipbookComponent::ServerPlaySoundProxy_Validate(class USoundCue* sound, float pitch) { return true; }

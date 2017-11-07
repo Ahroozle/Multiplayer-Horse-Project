@@ -62,6 +62,7 @@ void AOneShotAudio::Init(USoundCue* sound, float pitch)
 //void AOneShotAudio::Tick(float DeltaTime)
 //{
 //	Super::Tick(DeltaTime);
+//	UKismetSystemLibrary::DrawDebugSphere(this, GetActorLocation(), 400.0f, 4, FLinearColor::Red);
 //
 //}
 

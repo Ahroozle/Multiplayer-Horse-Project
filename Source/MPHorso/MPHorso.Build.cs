@@ -23,7 +23,8 @@ public class MPHorso : ModuleRules
                                                             "UMG", "Slate", "SlateCore",
                                                             "ProceduralMeshComponent", "VoronoiDiagram",
                                                             "APPFRAMEWORK",
-                                                            "Sockets", "Networking"//,
+                                                            "Sockets", "Networking",
+                                                            "Projects",//,
                                                             /*"RHI"*/});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
