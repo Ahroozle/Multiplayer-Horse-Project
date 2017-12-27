@@ -33,6 +33,15 @@ struct FOffsetAnimData
 		FName BoneName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Sprite Animation|Offset Animation")
+		bool EditLocation = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Sprite Animation|Offset Animation")
+		bool EditRotation = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Sprite Animation|Offset Animation")
+		bool SetDirectly = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Sprite Animation|Offset Animation")
 		TArray<FOffsetAnimKey> Keys;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Sprite Animation|Offset Animation")

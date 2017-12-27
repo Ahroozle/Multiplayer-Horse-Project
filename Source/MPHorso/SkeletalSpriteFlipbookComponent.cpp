@@ -55,10 +55,26 @@ void USkeletalSpriteFlipbookComponent::ChangeSkinAnim(class USkinAnimation* NewS
 
 void USkeletalSpriteFlipbookComponent::ChangeOffsetAnim(class UOffsetAnimation* NewOffsAnim, int Ind)
 {
-	CurrOffsTime = 0;
-	SetRelativeTransform(OriginalRelative);
-	OffsAnimIndex = Ind;
+	if (CurrOffsAnim == NewOffsAnim && !CurrOffsAnim->TriggerRegardless)
+		return;
+
 	CurrOffsAnim = NewOffsAnim;
+	OffsAnimIndex = Ind;
+	CurrOffsTime = 0;
+
+	if (nullptr != CurrOffsAnim)
+	{
+		FOffsetAnimData& RelevantData = CurrOffsAnim->Data[OffsAnimIndex];
+
+		if (RelevantData.EditLocation || RelevantData.EditRotation)
+		{
+			FVector ResL = (RelevantData.EditLocation ? OriginalRelative.GetLocation() : RelativeLocation);
+			FRotator ResR = (RelevantData.EditRotation ? OriginalRelative.GetRotation().Rotator() : RelativeRotation);
+
+			SetRelativeLocationAndRotation(ResL, ResR);
+		}
+	}
+
 }
 
 
@@ -82,36 +98,68 @@ void USkeletalSpriteFlipbookComponent::TickOffsetAnim(float DeltaTime)
 {
 	FOffsetAnimData& RelevantData = CurrOffsAnim->Data[OffsAnimIndex];
 
+	if (RelevantData.Keys.Num() < 1)
+	{
+		UStaticFuncLib::Print("USkeletalSpriteFlipbookComponent::TickOffsetAnim: Offset Animation " + CurrOffsAnim->GetName() +
+							  "Has no keys for bone \'" + RelevantData.BoneName.ToString() + "\'!");
+
+		ChangeOffsetAnim(nullptr, 0);
+		return;
+	}
+
+	if (!(RelevantData.EditLocation || RelevantData.EditRotation))
+	{
+		ChangeOffsetAnim(nullptr, 0);
+		return;
+	}
+
+	float SafeAnimLength = FMath::Max(0.0001f, RelevantData.AnimLength);
+
 	if (RelevantData.Loops)
-		CurrOffsTime = FMath::Fmod(CurrOffsTime + DeltaTime, RelevantData.AnimLength);
+		CurrOffsTime = FMath::Fmod(CurrOffsTime + DeltaTime, SafeAnimLength);
 	else
-		CurrOffsTime = FMath::Clamp(CurrOffsTime + DeltaTime, 0.0f, RelevantData.AnimLength);
+		CurrOffsTime = FMath::Clamp(CurrOffsTime + DeltaTime, 0.0f, SafeAnimLength);
 
 
-	float ratioTime = CurrOffsTime / RelevantData.AnimLength;
+	float ratioTime = CurrOffsTime / SafeAnimLength;
 
-	int left = 0;
-	while (left < RelevantData.Keys.Num() && RelevantData.Keys[left].Time > ratioTime)
-		++left;
+	int left = RelevantData.Keys.Num() - 1;
+	while (left > 0 && RelevantData.Keys[left].Time > ratioTime)
+		--left;
 	int right = FMath::Clamp(left + 1, 0, RelevantData.Keys.Num() - 1);
 
 
+	FVector ResultLoc;
+	FRotator ResultRot;
+
 	FOffsetAnimKey& leftRef = RelevantData.Keys[left];
 	FOffsetAnimKey& rightRef = RelevantData.Keys[right];
-	if (left == right || rightRef.Snap)
+	if (left == right || leftRef.Snap)
 	{
-		SetRelativeLocation(OriginalRelative.GetLocation() + leftRef.LocOffs);
-		SetRelativeRotation(OriginalRelative.GetRotation() + leftRef.RotOffs.Quaternion());
 
-		if (!RelevantData.Loops)
-			ChangeOffsetAnim(nullptr, 0);
+		ResultLoc = (RelevantData.EditLocation ? OriginalRelative.GetLocation() + leftRef.LocOffs : RelativeLocation);
+		ResultRot = (RelevantData.EditRotation ? (OriginalRelative.GetRotation() + leftRef.RotOffs.Quaternion()).Rotator() : RelativeRotation);
+
 	}
 	else
 	{
 		float internalRatio = (ratioTime - leftRef.Time) / (rightRef.Time - leftRef.Time);
-		SetRelativeLocation(OriginalRelative.GetLocation() + FMath::Lerp(leftRef.LocOffs, rightRef.LocOffs, internalRatio));
-		SetRelativeRotation(OriginalRelative.GetRotation() + FMath::Lerp(leftRef.RotOffs, rightRef.RotOffs, internalRatio).Quaternion());
+
+		ResultLoc = (RelevantData.EditLocation ? OriginalRelative.GetLocation() + FMath::Lerp(leftRef.LocOffs, rightRef.LocOffs, internalRatio) : RelativeLocation);
+		ResultRot = (RelevantData.EditRotation ? (OriginalRelative.GetRotation() + FMath::Lerp(leftRef.RotOffs, rightRef.RotOffs, internalRatio).Quaternion()).Rotator() : RelativeRotation);
 	}
+
+	if (RelevantData.SetDirectly)
+	{
+		RelativeLocation = ResultLoc;
+		RelativeRotation = ResultRot;
+	}
+	else
+		SetRelativeLocationAndRotation(ResultLoc, ResultRot);
+
+	if (!RelevantData.Loops && CurrOffsTime == RelevantData.AnimLength)
+		ChangeOffsetAnim(nullptr, 0);
+
 }
 
 void USkeletalSpriteFlipbookComponent::PlaySoundProxy(class USoundCue* sound, float pitch)

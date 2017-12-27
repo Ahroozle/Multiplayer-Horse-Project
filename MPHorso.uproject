@@ -20,6 +20,16 @@
 		{
 			"Name": "WebBrowserWidget",
 			"Enabled": true
+		},
+		{
+			"Name": "RawInput",
+			"Enabled": true
 		}
+	],
+	"TargetPlatforms": [
+		"AllDesktop",
+		"LinuxNoEditor",
+		"MacNoEditor",
+		"WindowsNoEditor"
 	]
 }
