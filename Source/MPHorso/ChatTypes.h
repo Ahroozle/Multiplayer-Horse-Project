@@ -9,9 +9,6 @@
 /*
 	TODO :
 		commands to create:
-			/me
-				'/me <text>' ==> '(Name) <text>'
-				third-person-ifies text, as well as italicizes.
 
 			/p, /party, /team (or whatever)
 				'/p <text>'
@@ -22,25 +19,9 @@
 			/players, /playing
 				displays list of all players currently present, client-side only of course.
 
-			/roll
-				'/roll' - ripped from terraria directly, rolls 1d100
-				'/roll <X>d<Y>' - rolls X amount of dice with Y sides and adds the results together
-
 		also could be useful to impl some of these ( http://terraria.gamepedia.com/Server#List_of_console_commands )
 		or similar if the need ever arises, as well as make some simple administration functionalities like ops, bans,
 		kicks, etc.
-
-		tags to create:
-			color, c
-				[c/<hex>:<text>] - colors <text> based on the provided <hex>
-
-			emph, e
-				[e:<text>] - emphasizes <text>.
-
-			name, n
-				[n:<name>] - writes the text as a name. This includes their respective team/party color (if teams/parties are impl'd)
-
-		also add support for nesting tags maybe?
 
 */
 
@@ -78,8 +59,8 @@ class MPHORSO_API UChatMessageAnim : public UObject
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Message Animation")
-		void EvaluateAtTime(float Time, const FWidgetTransform& CurrentTransform, FWidgetTransform& Result);
-	void EvaluateAtTime_Implementation(float Time, const FWidgetTransform& CurrentTransform, FWidgetTransform& Result) {}
+		void EvaluateAtTime(int Index, float Time, const FString& Args, const FWidgetTransform& CurrentTransform, FWidgetTransform& Result);
+	void EvaluateAtTime_Implementation(int Index, float Time, const FString& Args, const FWidgetTransform& CurrentTransform, FWidgetTransform& Result) {}
 };
 
 UCLASS(Blueprintable, abstract)
@@ -116,8 +97,8 @@ public:
 		event.
 	*/
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
-		bool AddAnimation(TSubclassOf<UChatMessageAnim> Anim);
-	bool AddAnimation_Implementation(TSubclassOf<UChatMessageAnim> Anim) { return false; }
+		bool AddAnimation(TSubclassOf<UChatMessageAnim> Anim, const FString& Args);
+	bool AddAnimation_Implementation(TSubclassOf<UChatMessageAnim> Anim, const FString& Args) { return false; }
 
 	/*
 		NOTE: the return is a dummy return,
@@ -140,6 +121,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
 		bool AddTime(float time);
 	bool AddTime_Implementation(float time) { return false; }
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Chat Word")
+		bool AddIndex(int index);
+	bool AddIndex_Implementation(int index) { return false; }
 };
 
 USTRUCT(BlueprintType)
@@ -204,4 +189,23 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		static int Roll(int NumDie, int Sidedness);
+
+	UFUNCTION(BlueprintCallable)
+		static void EvaluateAtTimeFromClass(TSubclassOf<UChatMessageAnim> AnimClass,
+											int Index,
+											float Time,
+											const FString& Args,
+											const FWidgetTransform& CurrentTransform,
+											FWidgetTransform& Result);
+
+	UFUNCTION(BlueprintPure)
+		static int GetStringLengthWithFont(UFont* Font, const FString& Str);
+
+	// Returns -1 if A>B, 1 if B>A, 0 if identical in length. Intended for use finding text box bounds.
+	UFUNCTION(BlueprintCallable)
+		static int CompareStringLengthsWithFont(UFont* Font, const FString& StringA, const FString& StringB, int& A_Length, int& B_Length);
+
+	// Note: Boundinglength is intended to be a length of a string in reference to the *font*, and not number of characters in the string.
+	UFUNCTION(BlueprintCallable)
+		static FString TrimToWithinBoundsWithFont(UFont* Font, const FString& ToTrim, int BoundingLength);
 };

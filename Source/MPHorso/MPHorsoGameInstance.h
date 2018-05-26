@@ -20,9 +20,11 @@ class UCameraComponent;
 class UCharacterSaveBase;
 class UWorldSaveBase;
 
-class URuleBlock;
+class UNPCRuleBlock;
 
 class AMPHorsoMusicManager;
+
+class ANPCNavManager;
 
 UENUM(BlueprintType)
 enum class ERaceType : uint8
@@ -75,12 +77,17 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 		UWorldSaveBase* WorldSave;
 
 	UPROPERTY()
-		TMap<TSubclassOf<URuleBlock>, URuleBlock*> InstantiatedRuleBlocks;
+		TMap<TSubclassOf<UNPCRuleBlock>, UNPCRuleBlock*> InstantiatedNPCRuleBlocks;
 
 	UPROPERTY()
 		AMPHorsoMusicManager* SpawnedMusicManager = nullptr;
 
+	UPROPERTY()
+		ANPCNavManager* RetrievedNavManager = nullptr;
+
+#if WITH_EDITOR
 	TMap<FName, TSharedRef<class IPlugin>> RetrievedMods;
+#endif
 
 public:
 
@@ -108,6 +115,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly)
 		TSubclassOf<AMPHorsoMusicManager> MusicManagerClass;
+
+	UPROPERTY(BlueprintReadOnly)
+		TArray<FString> DetectedMods;
 
 	/*
 		Names of World Types, paired with
@@ -248,11 +258,20 @@ public:
 	void UnopPlayer_Implementation(APlayerController* Player) {}
 
 	UFUNCTION()
-		URuleBlock* GetRuleBlock(TSubclassOf<URuleBlock> RuleBlockClass);
+		UNPCRuleBlock* GetNPCRuleBlock(TSubclassOf<UNPCRuleBlock> RuleBlockClass);
 
 	UFUNCTION(BlueprintPure)
 		AMPHorsoMusicManager* GetMusicManager();
 
-	UFUNCTION()
-		void LoadModContent();
+	UFUNCTION(BlueprintPure)
+		ANPCNavManager* GetNavManager();
+
+	void FindAndRegisterMods(class IAssetRegistry& AssetRegistry);
+
+	void GetBlueprintAssets(class IAssetRegistry& AssetRegistry, TArray<class FAssetData>& OutBlueprintAssets);
+
+	void FindContentOfClass(class IAssetRegistry& AssetRegistry,
+							const TArray<class FAssetData>& InFiltered,
+							UClass* ContentClass,
+							TArray<UClass*>& OutResults);
 };

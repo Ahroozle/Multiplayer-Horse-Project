@@ -32,4 +32,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "MP Horso Player Controller")
 		void PassToPersonalBubble(const FString& Msg);
 	void PassToPersonalBubble_Implementation(const FString& Msg);
+
+
+	UFUNCTION(BlueprintCallable, Server, Reliable, WithValidation)
+		void RunOnServer(UObject* Obj, const FString& FuncToCall);
+	void RunOnServer_Implementation(UObject* Obj, const FString& FuncToCall);
+	bool RunOnServer_Validate(UObject* Obj, const FString& FuncToCall);
 };

@@ -212,3 +212,55 @@ int UChatActionsLibrary::Roll(int NumDie, int Sidedness)
 
 	return RollingRes;
 }
+
+void UChatActionsLibrary::EvaluateAtTimeFromClass(TSubclassOf<UChatMessageAnim> AnimClass,
+												  int Index,
+												  float Time,
+												  const FString& Args,
+												  const FWidgetTransform& CurrentTransform,
+												  FWidgetTransform& Result)
+{
+	if (nullptr != AnimClass)
+		AnimClass.GetDefaultObject()->EvaluateAtTime(Index, Time, Args, CurrentTransform, Result);
+}
+
+int UChatActionsLibrary::GetStringLengthWithFont(UFont* Font, const FString& Str)
+{
+	return Font->GetStringSize(*Str);
+}
+
+int UChatActionsLibrary::CompareStringLengthsWithFont(UFont* Font, const FString& StringA, const FString& StringB, int& A_Length, int& B_Length)
+{
+	A_Length = Font->GetStringSize(*StringA);
+	B_Length = Font->GetStringSize(*StringB);
+
+	return FMath::Sign(B_Length - A_Length);
+}
+
+FString UChatActionsLibrary::TrimToWithinBoundsWithFont(UFont* Font, const FString& ToTrim, int BoundingLength)
+{
+	if (Font->GetStringSize(*ToTrim) <= BoundingLength)
+		return ToTrim;
+
+	int LeftInd = 0;
+	int RightInd = ToTrim.Len() - 1;
+	int NextHalfInd = LeftInd + ((RightInd - LeftInd) / 2);
+
+	do
+	{
+		int StringSizeBetween = Font->GetStringSize(*ToTrim.Mid(0, NextHalfInd + 1));
+
+		if (StringSizeBetween > BoundingLength)
+			RightInd = NextHalfInd;
+		else
+			LeftInd = NextHalfInd;
+
+		NextHalfInd = LeftInd + ((RightInd - LeftInd) / 2);
+
+	} while (NextHalfInd != LeftInd);
+
+	if (Font->GetStringSize(*ToTrim.Mid(0, LeftInd)) <= BoundingLength)
+		return ToTrim.Left(LeftInd + 1);
+	else
+		return "";
+}

@@ -24,6 +24,10 @@
 		{
 			"Name": "RawInput",
 			"Enabled": true
+		},
+		{
+			"Name": "TestMod",
+			"Enabled": false
 		}
 	],
 	"TargetPlatforms": [

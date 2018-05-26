@@ -24,7 +24,8 @@ public class MPHorso : ModuleRules
                                                             "ProceduralMeshComponent", "VoronoiDiagram",
                                                             "APPFRAMEWORK",
                                                             "Sockets", "Networking",
-                                                            "Projects",//,
+                                                            "Projects",
+                                                            "PakFile"//,
                                                             /*"RHI"*/});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });

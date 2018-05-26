@@ -10,6 +10,18 @@
 #include "OneShotAudio.h"
 
 
+void USkeletalSpriteFlipbookComponent::BeginPlay()
+{
+	if (nullptr != SkinSet)
+		LocalSkins = SkinSet.GetDefaultObject()->Skins;
+	SkinSet = nullptr;
+}
+void USkeletalSpriteFlipbookComponent::ChangeSkin(TSubclassOf<USkeletalSpriteSkinSet> NewSkin)
+{
+	if (nullptr != NewSkin)
+		LocalSkins = NewSkin.GetDefaultObject()->Skins;
+}
+
 void USkeletalSpriteFlipbookComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -35,7 +47,7 @@ void USkeletalSpriteFlipbookComponent::ChangeSkinAnim(class USkinAnimation* NewS
 	{
 		FSkinAnimData& RelevantData = NewSkinAnim->Data[SkinAnimIndex];
 
-		UPaperFlipbook* foundSkin = Skins.FindRef(RelevantData.SkinName);
+		UPaperFlipbook* foundSkin = LocalSkins.FindRef(RelevantData.SkinName);
 
 		if (nullptr != foundSkin)
 		{

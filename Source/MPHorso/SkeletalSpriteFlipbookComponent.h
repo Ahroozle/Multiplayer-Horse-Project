@@ -5,6 +5,17 @@
 #include "PaperFlipbookComponent.h"
 #include "SkeletalSpriteFlipbookComponent.generated.h"
 
+UCLASS(Blueprintable)
+class MPHORSO_API USkeletalSpriteSkinSet : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Sprite Flipbook Component")
+		TMap<FName, class UPaperFlipbook*> Skins;
+};
+
 /**
  * 
  */
@@ -15,8 +26,10 @@ class MPHORSO_API USkeletalSpriteFlipbookComponent : public UPaperFlipbookCompon
 
 public:
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skeletal Sprite Flipbook Component")
-		TMap<FName, class UPaperFlipbook*> Skins;
+	UPROPERTY(EditAnywhere, Category = "Skeletal Sprite Flipbook Component")
+		TSubclassOf<USkeletalSpriteSkinSet> SkinSet;
+	UPROPERTY(BlueprintReadWrite, Category = "Skeletal Sprite Flipbook Component")
+		TMap<FName, class UPaperFlipbook*> LocalSkins;
 	
 	UPROPERTY()
 		class USkinAnimation* CurrSkinAnim = nullptr;
@@ -36,6 +49,11 @@ public:
 		FTransform OriginalRelative;
 	UPROPERTY()
 		float CurrOffsTime;
+
+	virtual void BeginPlay() override;
+
+	UFUNCTION(BlueprintCallable)
+		void ChangeSkin(TSubclassOf<USkeletalSpriteSkinSet> NewSkin);
 
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 

@@ -424,7 +424,6 @@ float UStaticFuncLib::PreviousPowerOfTwo(float Num)
 
 FString UStaticFuncLib::ToRomanNumerals(int Number)
 {
-	// TODO IMPL
 	TArray<FString> RomanArr =
 	{
 		"M","CM","D","CD","C","XC","L","XL","X","IX","V","IV","I"

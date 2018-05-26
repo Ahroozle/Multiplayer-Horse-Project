@@ -6,11 +6,6 @@
 #include "MPHorsoMusicManager.generated.h"
 
 
-// TODO : TAKE VOLUME SETTINGS INTO ACCOUNT
-//
-// also things like:
-//			-create volume settings (Master, BGM, Ambience, and SFX separate) and tie them in appropriately.
-
 /*
 	Manager class for all Ambience and BGM!
 */

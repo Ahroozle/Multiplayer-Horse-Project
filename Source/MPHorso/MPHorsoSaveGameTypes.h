@@ -4,10 +4,19 @@
 
 #include "GameFramework/SaveGame.h"
 #include "MPHorsoGameInstance.h"
-#include "RuleTypes.h"
+#include "NPCGeneralTypes.h"
 #include "MPHorsoItemTypes.h"
 #include "MPHorsoSaveGameTypes.generated.h"
 
+
+/*
+	TODO
+		Somehow, store ID information.
+		i.e. Have clients keep a lost of their ID on each server, and have servers keep a list of client IDs
+		to organize various information with (i.e. log-off positions and whatnot)
+
+		Probably also store overworld room data within worldsaves in the form of NPC-relevant states
+*/
 
 /*
 	The base class for saves in MPHorso!
@@ -197,21 +206,17 @@ struct FNPC_SaveData
 	UPROPERTY(BlueprintReadWrite)
 		FVector Location;
 
-	// TODO: some way to assign homes by names or some other way?
-	UPROPERTY(BlueprintReadWrite)
-		FName HomeName;
-
 
 	// personality parts to reconstruct the NPC's behavior.
 
 	UPROPERTY(BlueprintReadWrite)
-		FName NPC_Name;
+		FNPCRelevantState Memories;//FRuleQuery Memories;
 
+	/*
+		This personality contains any edits that have happened, and overwrites the default if it isn't empty.
+	*/
 	UPROPERTY(BlueprintReadWrite)
-		TArray<TSubclassOf<URuleBlock>> SavedRules;
-
-	UPROPERTY(BlueprintReadWrite)
-		FRuleQuery Memories;
+		FNPCRelevantState SavedPersonality;
 
 };
 
@@ -340,7 +345,7 @@ struct FWorldSettingsData
 	e.g.
 	"WSave_129492_Equus_1"
 
-	(TODO : This is WIP and won't be used until world generation takes a front seat again)
+
 */
 UCLASS(abstract, Blueprintable)
 class MPHORSO_API UWorldSaveBase : public UMPHorsoSaveBase
@@ -363,14 +368,16 @@ public:
 		course modified when certain events happen.
 	*/
 	UPROPERTY(BlueprintReadWrite, Category = "World Save")
-		FRuleQuery WorldState;
+		FNPCRelevantState WorldState;//FRuleQuery WorldState;
 
 	/*
 		Data pertaining to every created NPC. This is
 		what should take up the bulk of the memory used.
+
+		Organized as NPC names to NPC Data
 	*/
 	UPROPERTY(BlueprintReadWrite, Category = "World Save")
-		TArray<FNPC_SaveData> NPCData;
+		TMap<FName, FNPC_SaveData> NPCData;
 
 	/*
 		Data saving the current weather.
