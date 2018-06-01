@@ -11,11 +11,15 @@
 
 /*
 	TODO
-		Remember that NPCs should NOt communicate tag data over connection.
+		Remember that NPCs should NOT communicate tag data over connection.
 		This would cause hilariously large, unnecessary amounts of traffic.
 		Instead somehow store NPC dialogue in an array, already parsed, and
 		pass around indices into that array.
+		(Maybe NPC sends "Talk" RPC over the network with an int and then that's
+		used to call SayRaw at each place?)
 
+	Maybe also pre-process user messages as kind-of discord markdown so that users can do
+	stuff like '_this_' or '*this*' for emphasis and ':this:' for pics?
 
 	Transcribed from board:
 
@@ -69,6 +73,7 @@
 		Switches emote. Lasts until next emote change or end of text.
 		Only changes in real time if typewriting, else only the last
 		emote triggers.
+		(Maybe actually put this in the higher-up data? idk? parse it in bubble instead of in letter)
 
 		[C/(Color)]
 		Colors text.
@@ -107,7 +112,7 @@
 */
 
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FSpeechTag
 {
 	GENERATED_USTRUCT_BODY();
@@ -150,26 +155,30 @@ protected:
 
 public:
 
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
 		UTextBlock* TextBlock;
 
-	UPROPERTY(VisibleDefaultsOnly)
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
 		TArray<FName> Anims;
 
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly)
-		int LetterIndex;
+		int LetterIndex = 0;
 
-	UPROPERTY()
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
 		float AnimTime = 0;
 
+
+	UFUNCTION(BlueprintImplementableEvent)
+		void PreInit();
+
 	UFUNCTION()
-		void Init(const TArray<FSpeechTag>& Tags, const FString& Text);
+		void Init(const TArray<FSpeechTag>& Tags, float StartTime);
 
 	UFUNCTION(BlueprintImplementableEvent)
 		void HandleTag(const FSpeechTag& Tag);
 
 	UFUNCTION(BlueprintImplementableEvent)
-		void HandleAnim(FName AnimName);
+		FWidgetTransform HandleAnim(FName AnimName, const FWidgetTransform& InTransform);
 
 	UFUNCTION()
 		void TickAnimations();
@@ -226,28 +235,31 @@ public:
 };
 
 
-UENUM()
-enum class ESpeechBubbleAnim : uint8
-{
-	Arriving,
-	Updating,
-	Leaving,
-	MAX
-};
-
 USTRUCT()
 struct FSpeechBubbleAnim
 {
 	GENERATED_USTRUCT_BODY();
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		UWidgetAnimation* Animation;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		bool PlayForward = true;
+};
 
-	UPROPERTY(EditAnywhere)
-		bool ClearBefore = false;
+USTRUCT()
+struct FSpeechBubbleAnimBundle
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpeechBubbleAnim Arriving;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpeechBubbleAnim Updating;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FSpeechBubbleAnim Leaving;
 };
 
 UCLASS(Blueprintable, abstract)
@@ -270,17 +282,23 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 		TSubclassOf<USpeechBubbleLetter> LetterClass;
 
+	UPROPERTY(EditDefaultsOnly)
+		TSubclassOf<USpeechBubbleWord> WordClass;
+
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
 		UWrapBox* WordBox;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+		FSpeechBubbleAnimBundle RelevantAnims;
+
 	UPROPERTY(EditDefaultsOnly)
-		FSpeechBubbleAnim RelevantAnimations[ESpeechBubbleAnim::MAX];
+		bool FinishEntryBeforeSettingText = false;
+
+	UPROPERTY(EditDefaultsOnly)
+		bool ClearTextBeforeUpdateAnim = false;
 
 	UPROPERTY(BlueprintReadOnly)
 		bool Leaving = false;
-
-	UPROPERTY(EditDefaultsOnly)
-		float TimeoutDuration = 5;
 
 	UPROPERTY()
 		bool TimedOut = false;
@@ -303,6 +321,24 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 		bool IsCutsceneBubble = false;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+		bool IsTypewriting = false;
+
+	// The soundset to be used in conjunction with typewriting functionality.
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
+		TSubclassOf<USpeechSoundSet> TWSoundSet;
+
+	/*
+		The delay used for the typewrite effect; A letter appears every this many seconds.
+		If this number is <= 0 then no typewrite effect will happen and all letters will
+		be visible immediately.
+	*/
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
+		float TypeDelay = 0.03;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
+		TArray<FSpeechTag> WaitTags;
+
 	/*
 		Should this speech bubble put letters into words first,
 		or just directly insert them into the WordBox? This affects
@@ -311,18 +347,48 @@ public:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
 		bool GroupWords = true;
 
-	// The soundset to be used in conjunction with typewriting functionality.
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly)
-		TSubclassOf<USpeechSoundSet> TWSoundSet;
+	UPROPERTY(BlueprintReadOnly)
+		FSpeechParsedMessage CurrentMessage;
 
-	/*
-		The delay used for the typewrite effect; A letter appears every this many seconds.
-		If this number is <= 0 then no typewrite effect will happen and all letters will
-		be visible immediately.
-	*/
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly)
-		float TypeDelay;
+	UPROPERTY(BlueprintReadOnly)
+		TArray<int> TWSoundInds;
 
+	UPROPERTY(BlueprintReadOnly)
+		TArray<USoundCue*> TWSounds;
+
+	UPROPERTY(BlueprintReadOnly)
+		int TWIndex;
+
+	UPROPERTY(BlueprintReadOnly)
+		FTimerHandle TWTimerHandle;
+
+	UPROPERTY(BlueprintReadOnly)
+		TArray<FSpeechTag> TWTagStack;
+
+	UPROPERTY()
+		TArray<USpeechBubbleLetter*> TWSpawnedLetters;
+
+	UPROPERTY()
+		float TWRollingTime = 0;
+
+	UPROPERTY()
+		FTimerHandle TimeoutHandle;
+
+	UPROPERTY()
+		FSpeechParsedMessage DelayedMessage;
+
+	UPROPERTY()
+		float DelayedTimeout;
+
+
+	UFUNCTION(BlueprintImplementableEvent)
+		void PreInit();
+
+	UFUNCTION(BlueprintImplementableEvent)
+		void InitAnimationPieces();
+	
+	UFUNCTION()
+		void OnEntryAnimFinished();
 
 	UFUNCTION(BlueprintNativeEvent)
 		void HandlePosAndScale();
@@ -331,9 +397,21 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 		void HandleMetadata(const FSpeechParsedMessage& Message);
 
-	UFUNCTION(BlueprintNativeEvent) // does this need to be bp-implementable?
-		void SetMessage(/*TODO ARGS*/);
-	void SetMessage_Implementation(/*TODO ARGS*/);
+	UFUNCTION()
+		void PopulateWords();
+
+	UFUNCTION(BlueprintNativeEvent)
+		void SetMessage(const FSpeechParsedMessage& Message, float TimeoutTime = 5);
+	void SetMessage_Implementation(const FSpeechParsedMessage& Message, float TimeoutTime = 5);
+
+	UFUNCTION()
+		void DoTypewrite();
+
+	UFUNCTION()
+		void DoWait();
+
+	UFUNCTION()
+		void OnUpdateAnimFinished();
 
 	UFUNCTION()
 		void Timeout();
@@ -378,11 +456,11 @@ struct FBubbleType
 	GENERATED_USTRUCT_BODY();
 
 	// The type of bubble this is during normal play.
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		TSubclassOf<USpeechBubble> Normal;
 
 	// The type of bubble this is when the player is in a cutscene.
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		TSubclassOf<USpeechBubble> Cutscene;
 };
 
@@ -406,26 +484,44 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		TSubclassOf<UCutsceneBars> CutsceneBarsType;
 
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		TMap<FName, FBubbleType> SpeechBubbleTypes;
 
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		TSubclassOf<USpeechChoice> SpeechChoiceType;
 
-	UPROPERTY()
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly)
 		UCutsceneBars* CurrentBars;
 	
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(BlueprintReadWrite)
+		TSubclassOf<USpeechBubble> NextBubbleType;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 		TMap<AActor*, USpeechBubble*> ExistingBubbles;
 	
+	// Determines if the client this instance of the manager is on is in a cutscene or not
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly)
+		bool InCutscene = false;
+
+
 	UFUNCTION(BlueprintImplementableEvent)
-		void HandleCommand(UObject* Caller, const FString& RawCommand, FString& LeftoverMessage);
+		void HandleCommand(UObject* Caller, const FString& RawCommand, FString& LeftoverMessage,
+			TArray<FString>& OutRecipients, bool& OutPassToBubble);
 
 	UFUNCTION()
 		FSpeechParsedMessage ParseTags(const FString& RawMessage);
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure, meta = (DisplayName = "Speaker Is A Player"))
+		bool SpeakerIsAPlayer(AActor* Speaker);
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure)
+		FString GetSpeakerName(AActor* Speaker);
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure)
+		bool PlayerIsModerator(AActor* Player);
 
 	UFUNCTION(BlueprintImplementableEvent)
 		void HandleMetadata(const FSpeechParsedMessage& Message);
@@ -434,6 +530,9 @@ public:
 		void StartCutscene(const TArray<APlayerController*>& AffectedPlayers);
 	void StartCutscene_Implementation(const TArray<APlayerController*>& AffectedPlayers);
 
+	UFUNCTION(BlueprintImplementableEvent)
+		void StopPlayer(APawn* PlayerPawn);
+
 	UFUNCTION(NetMulticast, Reliable)
 		void SpawnBars(const TArray<APlayerController*>& AffectedPlayers);
 	void SpawnBars_Implementation(const TArray<APlayerController*>& AffectedPlayers);
@@ -441,6 +540,10 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 		void MakeNewBubble(AActor* Speaker, const FSpeechParsedMessage& Message, float TimeoutTime = 5.0f);
 	void MakeNewBubble_Implementation(AActor* Speaker, const FSpeechParsedMessage& Message, float TimeoutTime = 5.0f);
+
+	UFUNCTION(NetMulticast, Reliable)
+		void PassToPlayerChats(AActor* SendingPlayer, const TArray<FString>& Recipients, const FSpeechParsedMessage& Message);
+	void PassToPlayerChats_Implementation(AActor* Sender, const TArray<FString>& Receivers, const FSpeechParsedMessage& Message);
 
 	UFUNCTION(NetMulticast, Reliable)
 		void DestroyBubble(AActor* Speaker, bool Immediate = false);
@@ -453,6 +556,9 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 		void EndCutscene(const TArray<APlayerController*>& AffectedPlayers);
 	void EndCutscene_Implementation(const TArray<APlayerController*>& AffectedPlayers);
+
+	UFUNCTION(BlueprintImplementableEvent)
+		void UnstopPlayer(APawn* PlayerPawn);
 
 };
 
@@ -494,6 +600,12 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable)
 		static void Say(AActor* Speaker, FString Message, float TimeoutTime = 5.0f);
+
+	/*
+		Variant of Say() which takes in already-parsed messages for various uses.
+	*/
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Say Pre-Parsed"))
+		static void SayParsed(AActor* Speaker, FSpeechParsedMessage Message, float TimeoutTime = 5.0f);
 
 	/*
 		Kills any speech bubbles the actor currently has, with the option

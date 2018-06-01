@@ -10,13 +10,12 @@
 #include "Blueprint/WidgetLayoutLibrary.h"
 
 
-void USpeechBubbleLetter::Init(const TArray<FSpeechTag>& Tags, const FString& Text)
+void USpeechBubbleLetter::Init(const TArray<FSpeechTag>& Tags, float StartTime)
 {
 	for (const FSpeechTag& curr : Tags)
 		HandleTag(curr);
 
-	if (nullptr != TextBlock)
-		TextBlock->SetText(FText::FromString(Text));
+	AnimTime = StartTime;
 
 	if (Anims.Num() > 0)
 	{
@@ -33,7 +32,7 @@ void USpeechBubbleLetter::TickAnimations()
 	AnimTime += GetWorld()->GetDeltaSeconds();
 
 	for (FName& curr : Anims)
-		HandleAnim(curr);
+		RollingTransform = HandleAnim(curr, RollingTransform);
 }
 
 
@@ -42,10 +41,41 @@ void USpeechSoundSet::Annotate(const FString& InMessage, TArray<int>& OutSoundIn
 	OutSoundIndices.Empty();
 	OutSounds.Empty();
 
-	// TODO
-	//		Most letters matched is the Word Sound that wins. Otherwise if no matches just do a random sound.
-	//		The sound index is pretty much the index of the first letter of the 'word' the sound is intended to
-	//		play on.
+	// TODO maybe add some sort of constructor kind of deal that sorts the words automatically when saved or bool pressed?
+
+	if (WordSounds.Num() > 0)
+	{
+		TArray<FWordSound> WordSoundsCopy = WordSounds;
+		WordSoundsCopy.Sort([](const FWordSound& a, const FWordSound& b) { return a.Word > b.Word; });
+
+		const int MaxCharsNeeded = WordSoundsCopy[0].Word.Len();
+
+		for (int i = 0; i < InMessage.Len() + 1; ++i)
+		{
+			FString Substr = InMessage.RightChop(i).Left(MaxCharsNeeded);
+
+			FWordSound* FoundWord =
+				WordSoundsCopy.FindByPredicate([&Substr](const FWordSound& a) { return Substr.StartsWith(a.Word); });
+
+			OutSoundIndices.Add(i);
+
+			if (nullptr != FoundWord)
+			{
+				OutSounds.Add(FoundWord->Sound);
+				i += FoundWord->Word.Len() - 1;
+			}
+			else if (RandomSounds.Num() > 0)
+				OutSounds.Add(RandomSounds[FMath::RandRange(0, RandomSounds.Num() - 1)]);
+		}
+	}
+	else if (RandomSounds.Num() > 0)
+	{
+		for (int i = 0; i < InMessage.Len() + 1; ++i)
+		{
+			OutSoundIndices.Add(i);
+			OutSounds.Add(RandomSounds[FMath::RandRange(0, RandomSounds.Num() - 1)]);
+		}
+	}
 }
 
 
@@ -53,16 +83,28 @@ void USpeechBubble::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	FSpeechBubbleAnim& Anim = RelevantAnimations[(int)ESpeechBubbleAnim::Arriving];
+	InitAnimationPieces();
+
+	FSpeechBubbleAnim& Anim = RelevantAnims.Arriving;
 
 	EUMGSequencePlayMode::Type PlayMode = (Anim.PlayForward ? EUMGSequencePlayMode::Forward : EUMGSequencePlayMode::Reverse);
 
 	PlayAnimation(Anim.Animation, 0.0f, 1, PlayMode);
 
+	if (FinishEntryBeforeSettingText)
+		Anim.Animation->OnAnimationFinished.AddDynamic(this, &USpeechBubble::OnEntryAnimFinished);
+
 	SetPositionInViewport(ViewportStartingPos);
 
 	FTimerHandle dummy;
 	GetWorld()->GetTimerManager().SetTimer(dummy, this, &USpeechBubble::HandlePosAndScale, 0.01f, true);
+}
+
+void USpeechBubble::OnEntryAnimFinished()
+{
+	RelevantAnims.Arriving.Animation->OnAnimationFinished.RemoveDynamic(this, &USpeechBubble::OnEntryAnimFinished);
+
+	SetMessage(DelayedMessage, DelayedTimeout);
 }
 
 void USpeechBubble::HandlePosAndScale_Implementation()
@@ -88,16 +130,100 @@ void USpeechBubble::HandlePosAndScale_Implementation()
 
 }
 
-void USpeechBubble::SetMessage_Implementation(/*TODO ARGS*/)
+void USpeechBubble::PopulateWords()
 {
-	// TODO
-
-	FTimerHandle dummy;
-	GetWorld()->GetTimerManager().SetTimer(dummy, this, &USpeechBubble::Timeout, TimeoutDuration, false);
-
-	if (!IsAnimationPlaying(RelevantAnimations[(int)ESpeechBubbleAnim::Arriving].Animation))
+	// Populating the wordbox
 	{
-		FSpeechBubbleAnim& Anim = RelevantAnimations[(int)ESpeechBubbleAnim::Updating];
+		USpeechBubbleWord* CurrentWord = nullptr;
+		if (GroupWords)
+		{
+			CurrentWord = CreateWidget<USpeechBubbleWord>(UStaticFuncLib::RetrieveGameInstance(this), WordClass);
+			WordBox->AddChild(CurrentWord);
+		}
+
+		for (auto iter = CurrentMessage.Message.CreateConstIterator(); iter; ++iter)
+		{
+			USpeechBubbleLetter* NewLetter = CreateWidget<USpeechBubbleLetter>(UStaticFuncLib::RetrieveGameInstance(this), LetterClass);
+
+			NewLetter->PreInit();
+
+			if (nullptr != NewLetter->TextBlock)
+				NewLetter->TextBlock->SetText(FText::FromString(FString(1, &*iter)));
+
+			if (nullptr == CurrentWord)
+				WordBox->AddChild(NewLetter);
+			else
+			{
+				TArray<UUserWidget*> Dummy;
+				Dummy.Add(NewLetter);
+				CurrentWord->AddLetters(Dummy);
+			}
+
+			if (IsTypewriting)
+				NewLetter->SetVisibility(ESlateVisibility::Hidden);
+
+			if (*iter == TEXT(' ') && GroupWords)
+			{
+				CurrentWord = CreateWidget<USpeechBubbleWord>(UStaticFuncLib::RetrieveGameInstance(this), WordClass);
+				WordBox->AddChild(CurrentWord);
+			}
+
+			TWSpawnedLetters.Add(NewLetter);
+		}
+	}
+
+	TWIndex = 0;
+	TWRollingTime = 0;
+
+	if (IsTypewriting)
+	{
+		if (nullptr != TWSoundSet)
+			TWSoundSet.GetDefaultObject()->Annotate(CurrentMessage.Message, TWSoundInds, TWSounds);
+
+		GetWorld()->GetTimerManager().SetTimer(TWTimerHandle, this, &USpeechBubble::DoTypewrite, TypeDelay, true);
+	}
+	else
+	{
+		for (; TWIndex < TWSpawnedLetters.Num(); ++TWIndex)
+		{
+			if (CurrentMessage.SpeechTags.Num() > 0 && TWIndex >= CurrentMessage.SpeechTags[0].Index)
+			{
+				if (CurrentMessage.SpeechTags[0].Removing)
+					TWTagStack.Pop();
+				else
+					TWTagStack.Push(CurrentMessage.SpeechTags[0]);
+
+				CurrentMessage.SpeechTags.RemoveAt(0);
+			}
+
+			TWSpawnedLetters[TWIndex]->Init(TWTagStack, TWRollingTime);
+		}
+	}
+}
+
+void USpeechBubble::SetMessage_Implementation(const FSpeechParsedMessage& Message, float TimeoutTime)
+{
+	WaitTags.Empty();
+	TWSpawnedLetters.Empty();
+	FString PrevMessage = CurrentMessage.Message;
+	CurrentMessage = Message;
+
+	HandleMetadata(Message);
+
+	if (TimeoutTime > FLT_EPSILON)
+		GetWorld()->GetTimerManager().SetTimer(TimeoutHandle, this, &USpeechBubble::Timeout, TimeoutTime, false);
+
+	if (!PrevMessage.IsEmpty())
+	{
+		FSpeechBubbleAnim& Anim = RelevantAnims.Updating;
+
+		if (ClearTextBeforeUpdateAnim)
+		{
+			WordBox->ClearChildren();
+			PopulateWords();
+		}
+		else if (nullptr != Anim.Animation)
+			Anim.Animation->OnAnimationFinished.AddDynamic(this, &USpeechBubble::OnUpdateAnimFinished);
 
 		EUMGSequencePlayMode::Type PlayMode = (Anim.PlayForward ? EUMGSequencePlayMode::Forward : EUMGSequencePlayMode::Reverse);
 
@@ -105,12 +231,99 @@ void USpeechBubble::SetMessage_Implementation(/*TODO ARGS*/)
 	}
 }
 
+void USpeechBubble::DoTypewrite()
+{
+	TWRollingTime += TypeDelay;
+
+	if (WaitTags.Num() > 0 && TWIndex >= WaitTags[0].Index)
+	{
+		TArray<FString> ParsedArgs;
+		WaitTags[0].TagArgs.ParseIntoArray(ParsedArgs, &FString(" ")[0], false);
+
+		if (ParsedArgs.Num() > 1 && ParsedArgs[1].IsNumeric())
+		{
+			FTimerManager& WorldTimerManager = GetWorld()->GetTimerManager();
+			WorldTimerManager.ClearTimer(TWTimerHandle);
+			WorldTimerManager.SetTimer(TWTimerHandle, this, &USpeechBubble::DoWait, FCString::Atof(*ParsedArgs[1]));
+		}
+		return;
+	}
+
+	if (TWIndex >= TWSpawnedLetters.Num())
+	{
+		GetWorld()->GetTimerManager().ClearTimer(TWTimerHandle);
+		return;
+	}
+
+	if (CurrentMessage.SpeechTags.Num() > 0 && TWIndex >= CurrentMessage.SpeechTags[0].Index)
+	{
+		if (CurrentMessage.SpeechTags[0].Removing)
+			TWTagStack.Pop();
+		else
+			TWTagStack.Push(CurrentMessage.SpeechTags[0]);
+
+		CurrentMessage.SpeechTags.RemoveAt(0);
+	}
+
+	if(TWSoundInds.Num() > 0 && TWIndex >= TWSoundInds[0])
+	{
+		// TODO attenuation stuff
+		UStaticFuncLib::PlaySound(this, OwningActor->GetActorTransform(), TWSounds[0], 1.0f);
+
+		TWSoundInds.RemoveAt(0);
+		TWSounds.RemoveAt(0);
+	}
+
+	TWSpawnedLetters[TWIndex]->Init(TWTagStack, TWRollingTime);
+	TWSpawnedLetters[TWIndex]->SetVisibility(ESlateVisibility::Visible);
+
+	++TWIndex;
+}
+
+void USpeechBubble::DoWait()
+{
+	if (WaitTags.Num() > 0 && TWIndex >= WaitTags[0].Index)
+	{
+		TArray<FString> ParsedArgs;
+		WaitTags[0].TagArgs.ParseIntoArray(ParsedArgs, &FString(" ")[0], false);
+
+		if (ParsedArgs.Num() > 1 && ParsedArgs[1].IsNumeric())
+			TWRollingTime += FCString::Atof(*ParsedArgs[1]);
+
+		if (ParsedArgs.Num() > 2 && ParsedArgs[2].IsNumeric())
+			TypeDelay = FCString::Atof(*ParsedArgs[2]);
+
+		GetWorld()->GetTimerManager().SetTimer(TWTimerHandle, this, &USpeechBubble::DoTypewrite, TypeDelay, true);
+
+		WaitTags.RemoveAt(0);
+	}
+}
+
+void USpeechBubble::OnUpdateAnimFinished()
+{
+	FSpeechBubbleAnim& Anim = RelevantAnims.Updating;
+
+	if (nullptr == Anim.Animation)
+		return;
+
+	Anim.Animation->OnAnimationFinished.RemoveDynamic(this, &USpeechBubble::OnUpdateAnimFinished);
+
+	WordBox->ClearChildren();
+
+	EUMGSequencePlayMode::Type PlayMode = (Anim.PlayForward ? EUMGSequencePlayMode::Reverse : EUMGSequencePlayMode::Forward);
+
+	PlayAnimation(Anim.Animation, 1.0f, 1, PlayMode);
+
+	PopulateWords();
+}
+
 void USpeechBubble::Timeout()
 {
-	// TODO hold up, this isn't net-capable or even cutscene-capable stuff. How do I deal with this?
 	TimedOut = true;
 
-	FSpeechBubbleAnim& Anim = RelevantAnimations[(int)ESpeechBubbleAnim::Leaving];
+	GetWorld()->GetTimerManager().ClearTimer(TimeoutHandle);
+
+	FSpeechBubbleAnim& Anim = RelevantAnims.Leaving;
 
 	EUMGSequencePlayMode::Type PlayMode = (Anim.PlayForward ? EUMGSequencePlayMode::Forward : EUMGSequencePlayMode::Reverse);
 
@@ -121,8 +334,6 @@ void USpeechBubble::Timeout()
 
 void USpeechBubble::OnLeaveAnimFinished()
 {
-	// TODO Maybe fire 'died' event and collapse instead of removing from parent?
-
 	RemoveFromParent();
 }
 
@@ -140,14 +351,12 @@ void ASpeechManager::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// TODO?
 }
 
 void ASpeechManager::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// TODO?
 }
 
 FSpeechParsedMessage ASpeechManager::ParseTags(const FString& RawMessage)
@@ -174,13 +383,12 @@ FSpeechParsedMessage ASpeechManager::ParseTags(const FString& RawMessage)
 
 			if (furtherIter)
 			{
-				int TagInd = 0;
+				int TagInd = OutParsed.Message.Len();
 
 				if (TagType == "MD")
 					OutParsed.MetadataTags.Add({ TagInd, false, *TagType, TagArgs });
 				else
 				{
-					TagInd = OutParsed.Message.Len();
 					OutParsed.SpeechTags.Add({ TagInd, false, *TagType, TagArgs });
 					OpenTagInds.Push(OutParsed.SpeechTags.Num() - 1);
 				}
@@ -209,9 +417,12 @@ FSpeechParsedMessage ASpeechManager::ParseTags(const FString& RawMessage)
 
 void ASpeechManager::StartCutscene_Implementation(const TArray<APlayerController*>& AffectedPlayers)
 {
-	if (!UKismetSystemLibrary::IsDedicatedServer(this) && AffectedPlayers.Contains(UGameplayStatics::GetPlayerController(this, 0)))
+	APlayerController* FocusController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!UKismetSystemLibrary::IsDedicatedServer(this) && AffectedPlayers.Contains(FocusController))
 	{
-		// TODO
+		InCutscene = true;
+
+		StopPlayer(FocusController->GetPawn());
 	}
 }
 
@@ -219,7 +430,6 @@ void ASpeechManager::SpawnBars_Implementation(const TArray<APlayerController*>& 
 {
 	if (!UKismetSystemLibrary::IsDedicatedServer(this) && AffectedPlayers.Contains(UGameplayStatics::GetPlayerController(this, 0)))
 	{
-		// TODO
 		if (nullptr != CurrentBars)
 			CurrentBars->RemoveFromParent();
 
@@ -231,19 +441,73 @@ void ASpeechManager::SpawnBars_Implementation(const TArray<APlayerController*>& 
 
 void ASpeechManager::MakeNewBubble_Implementation(AActor* Speaker, const FSpeechParsedMessage& Message, float TimeoutTime)
 {
-	// TODO
+	USpeechBubble* Found = ExistingBubbles.FindRef(Speaker);
+
+	if (nullptr == Found)
+	{
+		if (InCutscene)
+			NextBubbleType = SpeechBubbleTypes["Default"].Cutscene;
+		else
+			NextBubbleType = SpeechBubbleTypes["Default"].Normal;
+
+		HandleMetadata(Message);
+
+		USpeechBubble* NewBubble = CreateWidget<USpeechBubble>(UStaticFuncLib::RetrieveGameInstance(this), NextBubbleType);
+
+		NewBubble->PreInit();
+
+		if (NewBubble->FinishEntryBeforeSettingText)
+		{
+			NewBubble->DelayedMessage = Message;
+			NewBubble->DelayedTimeout = TimeoutTime;
+		}
+		else
+			NewBubble->SetMessage(Message, TimeoutTime);
+
+
+		NewBubble->AddToViewport();
+
+		ExistingBubbles.Add(Speaker, NewBubble);
+
+	}
+	else
+		Found->SetMessage(Message, TimeoutTime);
+}
+
+void ASpeechManager::PassToPlayerChats_Implementation(AActor* Sender, const TArray<FString>& Receivers, const FSpeechParsedMessage& Message)
+{
+	if (!UKismetSystemLibrary::IsDedicatedServer(this))
+	{
+		FSpeechParsedMessage FinalMessage = Message;
+
+		FinalMessage.Message = "{" + GetSpeakerName(Sender) + "} " + FinalMessage.Message;
+
+		if (Receivers.Num() < 1 || Receivers.Contains(GetSpeakerName(UGameplayStatics::GetPlayerController(this, 0))))
+		{
+			// TODO PASS TO LOCAL PLAYER'S CHAT
+		}
+	}
 }
 
 void ASpeechManager::DestroyBubble_Implementation(AActor* Speaker, bool Immediate)
 {
-	// TODO
+	USpeechBubble* Found = ExistingBubbles.FindRef(Speaker);
+
+	if (nullptr == Found)
+	{
+		if (Immediate)
+			Found->RemoveFromParent();
+		else
+			Found->Timeout();
+
+		ExistingBubbles.Remove(Speaker);
+	}
 }
 
 void ASpeechManager::KillBars_Implementation(const TArray<APlayerController*>& AffectedPlayers)
 {
 	if (!UKismetSystemLibrary::IsDedicatedServer(this) && AffectedPlayers.Contains(UGameplayStatics::GetPlayerController(this, 0)))
 	{
-		// TODO
 		if (nullptr != CurrentBars)
 		{
 			CurrentBars->Die();
@@ -254,9 +518,12 @@ void ASpeechManager::KillBars_Implementation(const TArray<APlayerController*>& A
 
 void ASpeechManager::EndCutscene_Implementation(const TArray<APlayerController*>& AffectedPlayers)
 {
-	if (!UKismetSystemLibrary::IsDedicatedServer(this) && AffectedPlayers.Contains(UGameplayStatics::GetPlayerController(this, 0)))
+	APlayerController* FocusController = UGameplayStatics::GetPlayerController(this, 0);
+	if (!UKismetSystemLibrary::IsDedicatedServer(this) && AffectedPlayers.Contains(FocusController))
 	{
-		// TODO
+		UnstopPlayer(FocusController->GetPawn());
+
+		InCutscene = false;
 	}
 }
 
@@ -306,15 +573,38 @@ void UCutsceneFuncLib::Say(AActor* Speaker, FString Message, float TimeoutTime)
 
 		if (nullptr != SpeechManager)
 		{
-			if (Message.StartsWith("/"))
-				SpeechManager->HandleCommand(Speaker, Message, Message);
+			bool PassToBubble = true;
+			TArray<FString> Recipients;
+
+			if (Message.RemoveFromStart("/"))
+				SpeechManager->HandleCommand(Speaker, Message, Message, Recipients, PassToBubble);
 
 			if (!Message.IsEmpty())
 			{
 				FSpeechParsedMessage Parsed = SpeechManager->ParseTags(Message);
 
-				SpeechManager->MakeNewBubble(Speaker, Parsed, TimeoutTime);
+				if (PassToBubble)
+					SpeechManager->MakeNewBubble(Speaker, Parsed, TimeoutTime);
+
+				if (SpeechManager->SpeakerIsAPlayer(Speaker))
+					SpeechManager->PassToPlayerChats(Speaker, Recipients, Parsed);
 			}
+		}
+		else
+			UStaticFuncLib::Print("UCutsceneFuncLib::Say: Couldn't get the Speech Manager!", true);
+	}
+}
+
+void UCutsceneFuncLib::SayParsed(AActor* Speaker, FSpeechParsedMessage Message, float TimeoutTime)
+{
+	if (UKismetSystemLibrary::IsServer(Speaker))
+	{
+		ASpeechManager* SpeechManager = GetSpeechManager(Speaker);
+
+		if (nullptr != SpeechManager)
+		{
+			if (!Message.Message.IsEmpty())
+				SpeechManager->MakeNewBubble(Speaker, Message, TimeoutTime);
 		}
 		else
 			UStaticFuncLib::Print("UCutsceneFuncLib::Say: Couldn't get the Speech Manager!", true);
@@ -364,8 +654,12 @@ FVector2D UCutsceneFuncLib::GetGlidedViewportPos(USpeechBubble* TargetWidget, bo
 {
 	if (nullptr != TargetWidget)
 	{
-		UWidgetAnimation* FocusAnimation =
-			TargetWidget->RelevantAnimations[(int)(Leaving ? ESpeechBubbleAnim::Leaving : ESpeechBubbleAnim::Arriving)].Animation;
+		UWidgetAnimation* FocusAnimation;
+		if (Leaving)
+			FocusAnimation = TargetWidget->RelevantAnims.Leaving.Animation;
+		else
+			FocusAnimation = TargetWidget->RelevantAnims.Arriving.Animation;
+
 		AActor* OwnActor = TargetWidget->OwningActor;
 
 		float StartTime = FocusAnimation->GetStartTime();
