@@ -489,6 +489,8 @@ void ARoomStreamingManager::HandleEnteringPlayer(APawn* EnteringPlayer, FRoomAdd
 					RequestLoadInvis(currEdgePair.Value.ToNode);
 			}
 
+			for (FName &currVisible : FoundNode->VisibleFrom)
+				RequestLoad({ SpawnRoom.LayerName, currVisible });
 
 			ULevelStreaming* GrabbedRoom = FoundNode->RoomRef;
 
@@ -791,15 +793,27 @@ void ARoomStreamingManager::RequestTraversal(APawn* Player, FRoomEdge Edge, FVec
 		{
 			TArray<FRoomAddress> ToUnload;
 			TArray<FRoomAddress> ToLoadInvis;
+			TArray<FRoomAddress> ToLoad;
+
 			for (auto &currOldNeighbor : FromNode->Edges)
 				ToUnload.Add(currOldNeighbor.Value.ToNode);
 
+			for (FName &currFromVisible : FromNode->VisibleFrom)
+				ToUnload.Add({ CurrRoomAddr.LayerName, currFromVisible });
+
 			ToUnload.Remove(NextRoomAddr);
+			ToLoad.Add(NextRoomAddr);
 
 			for (auto &currNewNeighbor : ToNode->Edges)
 			{
 				ToUnload.Remove(currNewNeighbor.Value.ToNode);
 				ToLoadInvis.Add(currNewNeighbor.Value.ToNode);
+			}
+
+			for (FName &currToVisible : ToNode->VisibleFrom)
+			{
+				ToUnload.Remove({ CurrRoomAddr.LayerName, currToVisible });
+				ToLoad.Add({ NextRoomAddr.LayerName, currToVisible });
 			}
 
 			for (FRoomAddress &currToUnload : ToUnload)
@@ -808,7 +822,8 @@ void ARoomStreamingManager::RequestTraversal(APawn* Player, FRoomEdge Edge, FVec
 			for (FRoomAddress &currToLoadInvis : ToLoadInvis)
 				RequestLoadInvis(currToLoadInvis);
 
-			RequestLoad(NextRoomAddr);
+			for (FRoomAddress &currToLoad : ToLoad)
+				RequestLoad(currToLoad);
 
 
 			ULevelStreaming* GrabbedRoom = ToNode->RoomRef;
@@ -876,6 +891,71 @@ void ARoomStreamingManager::FinishTraversal()
 		WaitingDuringTraverse.Remove(currDone);
 }
 
+void ARoomStreamingManager::RebindNode(ULevelStreaming* NodeRoom,
+	const TArray<FName>& NewEdgeNames, const TArray<FRoomEdge>& NewEdges, const TArray<FName>& NewVisibleFroms)
+{
+	FRoomAddress* FoundAddr = RoomsToNodes.Find(NodeRoom);
+
+	if (nullptr != FoundAddr)
+	{
+		FRoomGraph* FoundGraph = (FoundAddr->LayerName.IsNone() ? &OverworldLayer : InstancedLayers.Find(FoundAddr->LayerName));
+
+		if (nullptr != FoundGraph)
+		{
+			FRoomNode* FoundNode = FoundGraph->Nodes.Find(FoundAddr->RoomName);
+
+			if (nullptr != FoundNode)
+			{
+				TMap<FName, FRoomEdge> NewEdgesCombined;
+				for (int i = 0; i < NewEdgeNames.Num(); ++i)
+					NewEdgesCombined.Add(NewEdgeNames[i], NewEdges[i]);
+
+				TArray<FRoomAddress> ToUnload;
+				TArray<FRoomAddress> ToLoadInvis;
+				TArray<FRoomAddress> ToLoad;
+
+				for (auto &currOldNeighbor : FoundNode->Edges)
+					ToUnload.Add(currOldNeighbor.Value.ToNode);
+
+				for (FName &currFromVisible : FoundNode->VisibleFrom)
+					ToUnload.Add({ FoundAddr->LayerName, currFromVisible });
+
+				FoundNode->Edges.Append(NewEdgesCombined);
+
+				for (auto &currNewNeighbor : FoundNode->Edges)
+				{
+					ToUnload.Remove(currNewNeighbor.Value.ToNode);
+					ToLoadInvis.Add(currNewNeighbor.Value.ToNode);
+				}
+
+				for (FName &currToVisible : FoundNode->VisibleFrom)
+				{
+					ToUnload.Remove({ FoundAddr->LayerName, currToVisible });
+					ToLoad.Add({ FoundAddr->LayerName, currToVisible });
+				}
+
+				for (FRoomAddress &currToUnload : ToUnload)
+					RequestUnload(currToUnload);
+
+				for (FRoomAddress &currToLoadInvis : ToLoadInvis)
+					RequestLoadInvis(currToLoadInvis);
+
+				for (FRoomAddress &currToLoad : ToLoad)
+					RequestLoad(currToLoad);
+			}
+			else
+				UStaticFuncLib::Print("ARoomStreamingManager::RebindNode: Couldn't find a room named \'" +
+					FoundAddr->RoomName.ToString() + "\' in layer \'" + FoundAddr->LayerName.ToString() + "\'!", true);
+		}
+		else
+			UStaticFuncLib::Print("ARoomStreamingManager::RebindNode: Couldn't find a layer named \'" +
+				FoundAddr->LayerName.ToString() + "\'!", true);
+	}
+	else
+		UStaticFuncLib::Print("ARoomStreamingManager::RebindNode: Couldn't find a Room Node associated with Streamed Level \'" +
+			NodeRoom->GetName() + "\'!", true);
+}
+
 
 ARoomStreamingManager* URoomStreamingFuncLib::GetRoomStreamingManager(UObject* WorldContext)
 {
@@ -898,4 +978,15 @@ FName URoomStreamingFuncLib::MakeInstancedLayerName(UObject* WorldContext, FName
 		UStaticFuncLib::Print("URoomStreamingFuncLib::MakeInstancedLayerName: Couldn't retrieve the Room Streaming Manager!", true);
 
 	return "INST_LAYER_ERROR";
+}
+
+void URoomStreamingFuncLib::RebindNode(UObject* WorldContext,
+	ULevelStreaming* NodeRoom, const TArray<FName>& NewEdgeNames, const TArray<FRoomEdge>& NewEdges, const TArray<FName>& NewVisibleFroms)
+{
+	ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(WorldContext);
+
+	if (nullptr != StreamManager)
+		StreamManager->RebindNode(NodeRoom, NewEdgeNames, NewEdges, NewVisibleFroms);
+	else
+		UStaticFuncLib::Print("URoomStreamingFuncLib::RebindNode: Couldn't retrieve the Room Streaming Manager!", true);
 }

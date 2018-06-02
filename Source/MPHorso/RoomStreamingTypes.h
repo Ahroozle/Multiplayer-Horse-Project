@@ -41,10 +41,10 @@ struct FRoomEdge
 {
 	GENERATED_USTRUCT_BODY();
 
-	UPROPERTY(EditInstanceOnly)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite)
 		FRoomAddress ToNode;
 
-	UPROPERTY(EditInstanceOnly)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite)
 		FName ToLZName;
 
 	/*
@@ -356,6 +356,10 @@ public:
 	UFUNCTION()
 		void FinishTraversal();
 
+	UFUNCTION()
+		void RebindNode(ULevelStreaming* NodeRoom,
+			const TArray<FName>& NewEdgeNames, const TArray<FRoomEdge>& NewEdges, const TArray<FName>& NewVisibleFroms);
+
 };
 
 
@@ -372,4 +376,7 @@ public:
 	UFUNCTION(meta = (WorldContext = "WorldContext"))
 		static FName MakeInstancedLayerName(UObject* WorldContext, FName PrefixName);
 
+	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContext"))
+		static void RebindNode(UObject* WorldContext,
+			ULevelStreaming* NodeRoom, const TArray<FName>& NewEdgeNames, const TArray<FRoomEdge>& NewEdges, const TArray<FName>& NewVisibleFroms);
 };
