@@ -9,10 +9,6 @@
 class USkinAnimation;
 class UOffsetAnimation;
 
-class UChatCommandBlock;
-class UChatTagBlock;
-class UChatWord;
-
 class USpellArchetype;
 
 class UCameraComponent;
@@ -95,12 +91,6 @@ public:
 		TArray<TSubclassOf<USkinAnimation>> AllSkinAnims;
 	UPROPERTY(EditDefaultsOnly)
 		TArray<TSubclassOf<UOffsetAnimation>> AllOffsetAnims;
-	UPROPERTY(EditDefaultsOnly)
-		TSubclassOf<UChatCommandBlock> ChatCommandBlock;
-	UPROPERTY(EditDefaultsOnly)
-		TSubclassOf<UChatTagBlock> ChatTagBlock;
-	UPROPERTY(EditDefaultsOnly)
-		TSubclassOf<UChatWord> DefaultChatWordType;
 	UPROPERTY(EditDefaultsOnly)
 		TArray<TSubclassOf<USpellArchetype>> AllSpells;
 

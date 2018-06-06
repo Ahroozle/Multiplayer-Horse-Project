@@ -3,7 +3,7 @@
 #pragma once
 
 #include "GameFramework/PlayerController.h"
-#include "ChatTypes.h"
+#include "MPHorsoCutsceneTypes.h"
 #include "MPHorsoPlayerController.generated.h"
 
 /**
@@ -22,20 +22,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated)
 		TArray<FName> EquippedSpells;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated)
-		TSet<FName> OpenChannels;
-
-	UFUNCTION(BlueprintNativeEvent, Category = "MP Horso Player Controller")
-		void PassMessage(AMPHorsoPlayerController* Sender, const FString& Msg);
-	virtual void PassMessage_Implementation(AMPHorsoPlayerController* Sender, const FString& Msg);
-	
-	UFUNCTION(BlueprintNativeEvent, Category = "MP Horso Player Controller")
-		void PassToPersonalBubble(const FString& Msg);
-	void PassToPersonalBubble_Implementation(const FString& Msg);
-
 
 	UFUNCTION(BlueprintCallable, Server, Reliable, WithValidation)
 		void RunOnServer(UObject* Obj, const FString& FuncToCall);
 	void RunOnServer_Implementation(UObject* Obj, const FString& FuncToCall);
 	bool RunOnServer_Validate(UObject* Obj, const FString& FuncToCall);
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure)
+		AActor* GetBody();
+
+	UFUNCTION(BlueprintCallable, Server, Reliable, WithValidation)
+		void SendChatMessage(const FString& Message);
+		void SendChatMessage_Implementation(const FString& Message);
+		bool SendChatMessage_Validate(const FString& Message);
+
+	UFUNCTION(BlueprintImplementableEvent)
+		void ReceiveChatMessage(const FSpeechParsedMessage& Message);
 };

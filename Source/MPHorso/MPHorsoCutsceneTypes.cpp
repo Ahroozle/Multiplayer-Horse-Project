@@ -4,9 +4,11 @@
 #include "MPHorsoCutsceneTypes.h"
 
 #include "Runtime/UMG/Public/Animation/WidgetAnimation.h"
+#include "Kismet/GameplayStatics.h"
 
 #include "StaticFuncLib.h"
-#include "Kismet/GameplayStatics.h"
+#include "MPHorsoPlayerController.h"
+
 #include "Blueprint/WidgetLayoutLibrary.h"
 
 
@@ -33,6 +35,8 @@ void USpeechBubbleLetter::TickAnimations()
 
 	for (FName& curr : Anims)
 		RollingTransform = HandleAnim(curr, RollingTransform);
+
+	SetRenderTransform(RollingTransform);
 }
 
 
@@ -94,7 +98,9 @@ void USpeechBubble::NativeConstruct()
 	if (FinishEntryBeforeSettingText)
 		Anim.Animation->OnAnimationFinished.AddDynamic(this, &USpeechBubble::OnEntryAnimFinished);
 
-	SetPositionInViewport(ViewportStartingPos);
+	SetAlignmentInViewport(ViewportStartingPos);
+
+	HandlePosAndScale();
 
 	FTimerHandle dummy;
 	GetWorld()->GetTimerManager().SetTimer(dummy, this, &USpeechBubble::HandlePosAndScale, 0.01f, true);
@@ -123,7 +129,10 @@ void USpeechBubble::HandlePosAndScale_Implementation()
 		SetRenderTranslation({ 0, BubbleDist * ScalingDip });
 
 		APlayerController* RelevantController = UGameplayStatics::GetPlayerController(OwningActor, 0);
-		UGameplayStatics::ProjectWorldToScreen(RelevantController, OwningActor->GetActorLocation() + AnchorPoint, ViewportPos);
+		if (!UGameplayStatics::ProjectWorldToScreen(RelevantController, OwningActor->GetActorLocation() + AnchorPoint, ViewportPos))
+			SetVisibility(ESlateVisibility::Collapsed);
+		else if (Visibility == ESlateVisibility::Collapsed)
+			SetVisibility(ESlateVisibility::Visible);
 	}
 
 	SetPositionInViewport(ViewportPos);
@@ -132,6 +141,18 @@ void USpeechBubble::HandlePosAndScale_Implementation()
 
 void USpeechBubble::PopulateWords()
 {
+	if (nullptr == LetterClass)
+	{
+		UStaticFuncLib::Print("USpeechBubble::PopulateWords: LetterClass was null!", true);
+		return;
+	}
+
+	if (nullptr == WordClass && GroupWords)
+	{
+		UStaticFuncLib::Print("USpeechBubble::PopulateWords: WordClass was null!", true);
+		return;
+	}
+
 	// Populating the wordbox
 	{
 		USpeechBubbleWord* CurrentWord = nullptr;
@@ -141,11 +162,13 @@ void USpeechBubble::PopulateWords()
 			WordBox->AddChild(CurrentWord);
 		}
 
-		for (auto iter = CurrentMessage.Message.CreateConstIterator(); iter; ++iter)
+		for (auto iter = CurrentMessage.Message.CreateConstIterator(); iter && *iter; ++iter)
 		{
 			USpeechBubbleLetter* NewLetter = CreateWidget<USpeechBubbleLetter>(UStaticFuncLib::RetrieveGameInstance(this), LetterClass);
 
 			NewLetter->PreInit();
+
+			NewLetter->LetterIndex = iter.GetIndex();
 
 			if (nullptr != NewLetter->TextBlock)
 				NewLetter->TextBlock->SetText(FText::FromString(FString(1, &*iter)));
@@ -186,7 +209,7 @@ void USpeechBubble::PopulateWords()
 	{
 		for (; TWIndex < TWSpawnedLetters.Num(); ++TWIndex)
 		{
-			if (CurrentMessage.SpeechTags.Num() > 0 && TWIndex >= CurrentMessage.SpeechTags[0].Index)
+			while (CurrentMessage.SpeechTags.Num() > 0 && TWIndex >= CurrentMessage.SpeechTags[0].Index)
 			{
 				if (CurrentMessage.SpeechTags[0].Removing)
 					TWTagStack.Pop();
@@ -229,6 +252,8 @@ void USpeechBubble::SetMessage_Implementation(const FSpeechParsedMessage& Messag
 
 		PlayAnimation(Anim.Animation, 0.0f, 1, PlayMode);
 	}
+	else
+		PopulateWords();
 }
 
 void USpeechBubble::DoTypewrite()
@@ -255,7 +280,7 @@ void USpeechBubble::DoTypewrite()
 		return;
 	}
 
-	if (CurrentMessage.SpeechTags.Num() > 0 && TWIndex >= CurrentMessage.SpeechTags[0].Index)
+	while (CurrentMessage.SpeechTags.Num() > 0 && TWIndex >= CurrentMessage.SpeechTags[0].Index)
 	{
 		if (CurrentMessage.SpeechTags[0].Removing)
 			TWTagStack.Pop();
@@ -330,6 +355,12 @@ void USpeechBubble::Timeout()
 	PlayAnimation(Anim.Animation, 0.0f, 1, PlayMode);
 
 	Anim.Animation->OnAnimationFinished.AddDynamic(this, &USpeechBubble::OnLeaveAnimFinished);
+
+
+	ASpeechManager* SpeechManager = UCutsceneFuncLib::GetSpeechManager(this);
+
+	if (nullptr != SpeechManager)
+		SpeechManager->ExistingBubbles.Remove(OwningActor);
 }
 
 void USpeechBubble::OnLeaveAnimFinished()
@@ -400,11 +431,11 @@ FSpeechParsedMessage ASpeechManager::ParseTags(const FString& RawMessage)
 		}
 		else if (*iter == TEXT(']') && OpenTagInds.Num() > 0)
 		{
-			int RemTagInd = OutParsed.SpeechTags.Add(OutParsed.SpeechTags[OpenTagInds.Pop()]);
+			FSpeechTag NewTag = OutParsed.SpeechTags[OpenTagInds.Pop()];
+			NewTag.Index = OutParsed.Message.Len();
+			NewTag.Removing = true;
 
-			FSpeechTag& RemTag = OutParsed.SpeechTags[RemTagInd];
-			RemTag.Index = OutParsed.Message.Len();
-			RemTag.Removing = true;
+			OutParsed.SpeechTags.Add(NewTag);
 
 			continue;
 		}
@@ -464,6 +495,8 @@ void ASpeechManager::MakeNewBubble_Implementation(AActor* Speaker, const FSpeech
 		else
 			NewBubble->SetMessage(Message, TimeoutTime);
 
+		NewBubble->OwningActor = Speaker;
+		NewBubble->RelevantPlayer = UGameplayStatics::GetPlayerPawn(this, 0);
 
 		NewBubble->AddToViewport();
 
@@ -480,11 +513,20 @@ void ASpeechManager::PassToPlayerChats_Implementation(AActor* Sender, const TArr
 	{
 		FSpeechParsedMessage FinalMessage = Message;
 
-		FinalMessage.Message = "{" + GetSpeakerName(Sender) + "} " + FinalMessage.Message;
+		FString SpeakerPrepend = "{" + GetSpeakerName(Sender) + "} ";
 
-		if (Receivers.Num() < 1 || Receivers.Contains(GetSpeakerName(UGameplayStatics::GetPlayerController(this, 0))))
+		FinalMessage.Message = SpeakerPrepend + FinalMessage.Message;
+
+		for (FSpeechTag& currTag : FinalMessage.SpeechTags)
+			currTag.Index += SpeakerPrepend.Len();
+
+		APlayerController* RelevantController = UGameplayStatics::GetPlayerController(this, 0);
+		if (Receivers.Num() < 1 || Receivers.Contains(GetSpeakerName(RelevantController)))
 		{
-			// TODO PASS TO LOCAL PLAYER'S CHAT
+			AMPHorsoPlayerController* CastedRelevant = Cast<AMPHorsoPlayerController>(RelevantController);
+			
+			if (nullptr != CastedRelevant)
+				CastedRelevant->ReceiveChatMessage(FinalMessage);
 		}
 	}
 }
@@ -677,4 +719,14 @@ FVector2D UCutsceneFuncLib::GetGlidedViewportPos(USpeechBubble* TargetWidget, bo
 		UStaticFuncLib::Print("UCutsceneFuncLib::GetGlidedViewportPos: TargetWidget was null!", true);
 
 	return { 0, 0 };
+}
+
+int UCutsceneFuncLib::Roll(int NumDie, int Sidedness)
+{
+	int RollingRes = 0;
+
+	while (--NumDie >= 0)
+		RollingRes += FMath::RandRange(1, Sidedness);
+
+	return RollingRes;
 }

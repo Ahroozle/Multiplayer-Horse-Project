@@ -11,14 +11,8 @@ void AMPHorsoPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 
 	DOREPLIFETIME(AMPHorsoPlayerController, MyName);
 	DOREPLIFETIME(AMPHorsoPlayerController, EquippedSpells);
-	DOREPLIFETIME(AMPHorsoPlayerController, OpenChannels);
 
 }
-
-void AMPHorsoPlayerController::PassMessage_Implementation(AMPHorsoPlayerController* Sender, const FString& Msg) {}
-
-void AMPHorsoPlayerController::PassToPersonalBubble_Implementation(const FString& Msg) {}
-
 
 void AMPHorsoPlayerController::RunOnServer_Implementation(UObject* Obj, const FString& FuncToCall)
 {
@@ -29,3 +23,8 @@ void AMPHorsoPlayerController::RunOnServer_Implementation(UObject* Obj, const FS
 }
 
 bool AMPHorsoPlayerController::RunOnServer_Validate(UObject* Obj, const FString& FuncToCall) { return true; }
+
+
+void AMPHorsoPlayerController::SendChatMessage_Implementation(const FString& Message) { UCutsceneFuncLib::Say(GetBody(), Message); }
+
+bool AMPHorsoPlayerController::SendChatMessage_Validate(const FString& Message) { return true; }
