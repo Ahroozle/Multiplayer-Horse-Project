@@ -2,129 +2,160 @@
 
 #pragma once
 
-#include "Object.h"
+#include "GameFramework/Actor.h"
 #include "MagicTypes.generated.h"
 
 
-USTRUCT(BlueprintType)
-struct FNetworkSendableSpellArgs
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSpellUICancelled);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSpellUIFinished);
+
+USTRUCT()
+struct FArgFunc
 {
 	GENERATED_USTRUCT_BODY();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TSubclassOf<class USpellUI> SpellUIClass;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TSubclassOf<class USpellArchetype> SpellArchetypeClass;
+	UPROPERTY(EditDefaultsOnly)
+		FString EventName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<FName> ActorArgNames;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<class AActor*> ActorArgs;
+	// Name of the "root" component of the arg's component tree; used to help duplicate the entire arg.
+	UPROPERTY(EditDefaultsOnly)
+		FString TemplateComponentName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<FName> VectorArgNames;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<FVector> VectorArgs;
+	// Names of components in the arg's component tree which require spherical billboarding.
+	UPROPERTY(EditDefaultsOnly)
+		TSet<FString> BillboardComponents;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<FName> RotatorArgNames;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<FRotator> RotatorArgs;
+	// Names of components in the arg's component tree which require cylindrical billboarding.
+	UPROPERTY(EditDefaultsOnly)
+		TSet<FString> PoleComponents;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<FName> FloatArgNames;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell UI Arg Package")
-		TArray<float> FloatArgs;
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSpellUICancelled);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSpellUIArgRejected);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FSpellUIArgConfirmed, int, ArgNum);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSpellUIFinished);
-
-UCLASS(Blueprintable)
-class MPHORSO_API USpellUI : public UObject
+UCLASS(Blueprintable, abstract)
+class MPHORSO_API AMagicUI : public AActor
 {
 	GENERATED_BODY()
 
 public:
+	// Sets default values for this actor's properties
+	AMagicUI(const FObjectInitializer& _init);
 
-	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Spell UI")
-		FSpellUICancelled CancelledDelegate;
-	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Spell UI")
-		FSpellUIArgRejected ArgRejectedDelegate;
-	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Spell UI")
-		FSpellUIArgConfirmed ArgConfirmedDelegate;
-	UPROPERTY(BlueprintAssignable, BlueprintCallable, Category = "Spell UI")
-		FSpellUIFinished FinishedDelegate;
+	virtual void OnConstruction(const FTransform& Transform) override;
 
-	// This version of Use is intended for player use; feedback is desired to be built into the event ladder
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Spell UI")
-		void Use(class AController* Caster);
-	void Use_Implementation(class AController* Caster) {}
-
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Spell UI")
-		void Kill();
-	void Kill_Implementation() {}
-
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Spell UI")
-		void UseWithArgPackage(const FNetworkSendableSpellArgs& ArgPackage);
-	void UseWithArgPackage_Implementation(const FNetworkSendableSpellArgs& ArgPackage) {}
-
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Spell UI")
-		void GetArgPackage(FNetworkSendableSpellArgs& GeneratedPackage);
-	void GetArgPackage_Implementation(FNetworkSendableSpellArgs& GeneratedPackage) {}
-
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Spell UI")
-		float GetCurrentStaminaCost();
-	float GetCurrentStaminaCost_Implementation() { return 0; }
-
-	// SpecialUse should be defined on a per-UI basis as a way for non-player entities to use spells
-	// in other ways without having to interact with player feedback classes they don't need.
-};
-
-UCLASS(Blueprintable)
-class MPHORSO_API USpellArchetype : public UObject
-{
-	GENERATED_BODY()
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
 
 public:
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell Archetype")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		FName SpellName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell Archetype")
-		FLinearColor SpellColor;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell Archetype")
-		UTexture* SpellImage;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		UMaterialInterface* SpellEmblem;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell Archetype")
-		TSubclassOf<USpellUI> UI;
+	// Map of Magic Arg Types to Events to be invoked on requesting them.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite)
+		TMap<FName, FArgFunc> ArgFuncs;
 
-	UFUNCTION(BlueprintNativeEvent, Category = "Spell Archetype")
-		void Use(class AActor* Caster, USpellUI* Args);
-	void Use_Implementation(class AActor* Caster, USpellUI* Args) {}
+	UPROPERTY(BlueprintReadOnly)
+		USceneComponent* NewestArg;
+
+	// References to components that require spherical billboarding
+	UPROPERTY(VisibleAnywhere)
+		TArray<USceneComponent*> FullBillboardTargets;
+
+	// References to components that require cylindrical billboarding
+	UPROPERTY(VisibleAnywhere)
+		TArray<USceneComponent*> PoleBillboardTargets;
+
+	// References to components attached to actors, for removal once the spell is cast or cancelled.
+	UPROPERTY(VisibleAnywhere)
+		TArray<USceneComponent*> MovingTargets;
+
+	UPROPERTY(BlueprintReadWrite)
+		TArray<USceneComponent*> TargetMarkers;
+
+	UPROPERTY()
+		int UniqueNum = 0;
+
+	UPROPERTY(BlueprintAssignable, BlueprintCallable)
+		FSpellUICancelled OnSpellCancelled;
+
+	UPROPERTY(BlueprintAssignable, BlueprintCallable)
+		FSpellUIFinished OnSpellFinished;
+
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+		void Init();
+
+	UFUNCTION()
+		void TickBillboards();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+		bool CastSpell(AActor* Caster);
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintPure)
+		float GetCurrentStaminaCost();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+		bool SetPaired(AMagicUI* Paired);
+
+	UFUNCTION()
+		void CopyArg(USceneComponent* RootComp, const FArgFunc& ArgFunc);
+
+	UFUNCTION()
+		void CopyHelper(USceneComponent* CurrentToCopy, USceneComponent* Parent, const FArgFunc& ArgFunc);
+
+	UFUNCTION(BlueprintCallable)
+		bool RequestArg(FName ArgType);
+
+	// Call this and pass in NewestArg and your selected moving target in order to fasten the arg to them.
+	UFUNCTION(BlueprintCallable)
+		void RegisterMovingArg(USceneComponent* NewMovingArg, AActor* Target);
+
+	// Call this function before the UI destroys itself to make sure that moving target markers are removed!
+	UFUNCTION(BlueprintCallable)
+		void RecallMovingArgs();
+
+	UFUNCTION(BlueprintCallable)
+		void MarkTargets(USceneComponent* ToCopy, TArray<AActor*> Targets);
+
+	UFUNCTION()
+		USceneComponent* MarkHelper(USceneComponent* ToCopy);
+
+	UFUNCTION(BlueprintCallable)
+		void HideMarks();
+
+	UFUNCTION(BlueprintCallable)
+		void RecallMarks();
+
+	UFUNCTION(BlueprintCallable)
+		void Die();
 };
+
 
 UCLASS()
 class MPHORSO_API UMagicActionsLibrary : public UObject
 {
 	GENERATED_BODY()
 
-	static TArray<TSubclassOf<USpellArchetype>> SpellArchetypes;
-
-	static void PopulateSpellArchetypes();
-
 public:
 
-	UFUNCTION(BlueprintPure, Category = "Magic Actions Library")
-		static FLinearColor GetSpellColor(const FName& SpellName);
-	UFUNCTION(BlueprintPure, Category = "Magic Actions Library")
-		static UTexture* GetSpellImage(const FName& SpellName);
+	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContext"))
+		static TSubclassOf<AMagicUI> LoadSpellSynchronous(UObject* WorldContext, FName MagicName);
 
-	UFUNCTION(BlueprintCallable, Category = "Magic Actions Library")
-		static bool GetSpell(const FName& SpellName, TSubclassOf<USpellArchetype>& RetrievedSpell, TSubclassOf<USpellUI>& RetrievedUI);
+	UFUNCTION(BlueprintCallable, meta = (WorldContext = "WorldContext"))
+		static void LoadMultipleSpellsSynchronous(UObject* WorldContext, const TArray<FName>& MagicNames, TArray<TSubclassOf<AMagicUI>>& OutLoaded);
 
-	UFUNCTION(BlueprintCallable, Category = "Magic Actions Library")
-		static void ExecuteSpell(AActor* Caster, TSubclassOf<USpellArchetype> Spell, USpellUI* Args);
+	UFUNCTION(BlueprintPure)
+		static UMaterialInterface* GetMagicEmblem(TSubclassOf<AMagicUI> MagicClass);
+
+	UFUNCTION(BlueprintPure)
+		static UTexture* GetMagicEmblemTexture(TSubclassOf<AMagicUI> MagicClass);
+
+	UFUNCTION(BlueprintPure)
+		static FLinearColor GetMagicColor(TSubclassOf<AMagicUI> MagicClass);
 };

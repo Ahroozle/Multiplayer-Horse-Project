@@ -6,11 +6,6 @@
 #include "MPHorsoGameInstance.generated.h"
 
 
-class USkinAnimation;
-class UOffsetAnimation;
-
-class USpellArchetype;
-
 class UCameraComponent;
 
 class UCharacterSaveBase;
@@ -87,12 +82,8 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 
 public:
 
-	UPROPERTY(EditDefaultsOnly)
-		TArray<TSubclassOf<USkinAnimation>> AllSkinAnims;
-	UPROPERTY(EditDefaultsOnly)
-		TArray<TSubclassOf<UOffsetAnimation>> AllOffsetAnims;
-	UPROPERTY(EditDefaultsOnly)
-		TArray<TSubclassOf<USpellArchetype>> AllSpells;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+		TMap<FName, TAssetSubclassOf<AMagicUI>> AllSpells;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		TSubclassOf<UCharacterSaveBase> CurrentCharacterSaveType;

@@ -3,8 +3,6 @@
 #include "MPHorso.h"
 #include "MPHorsoGameInstance.h"
 
-#include "SkeletalSpriteAnimation.h"
-
 #include "StaticFuncLib.h"
 
 #include "MPHorsoSaveGameTypes.h"
@@ -271,8 +269,8 @@ void UMPHorsoGameInstance::FindContentOfClass(IAssetRegistry& AssetRegistry,
 		TSet< FName > Excluded;
 		AssetRegistry.GetDerivedClassNames(BaseNames, Excluded, DerivedNames);
 
-		for (auto curr : DerivedNames)
-			UStaticFuncLib::Print(curr.ToString());
+		//for (auto curr : DerivedNames)
+		//	UStaticFuncLib::Print(curr.ToString());
 
 		DerivedNames.Remove(ContentClass->GetFName());
 	}
