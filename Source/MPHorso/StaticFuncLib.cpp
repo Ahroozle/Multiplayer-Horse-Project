@@ -105,20 +105,20 @@ void UStaticFuncLib::WordWrap(const FString& inStr, FString& outStr, int Optimal
 	}
 }
 
-AActor* UStaticFuncLib::SpawnActorProxy(AActor* WorldContext, TSubclassOf<AActor> ToSpawn, const FTransform& SpawnLoc)
-{
-	return WorldContext->GetWorld()->SpawnActor(ToSpawn, &SpawnLoc);
-}
-
-UParticleSystemComponent* UStaticFuncLib::SpawnEmitterAtLocationProxy(AActor* WorldContext, UParticleSystem* Template, FVector SpawnLoc, FRotator SpawnRot, bool AutoDestroy)
-{
-	return UGameplayStatics::SpawnEmitterAtLocation(WorldContext, Template, SpawnLoc, SpawnRot, AutoDestroy);
-}
-
-void UStaticFuncLib::GetAllActorsOfClassProxy(AActor* WorldContext, TSubclassOf<AActor> Class, TArray<AActor*>& OutFound)
-{
-	UGameplayStatics::GetAllActorsOfClass(WorldContext, Class, OutFound);
-}
+//AActor* UStaticFuncLib::SpawnActorProxy(AActor* WorldContext, TSubclassOf<AActor> ToSpawn, const FTransform& SpawnLoc)
+//{
+//	return WorldContext->GetWorld()->SpawnActor(ToSpawn, &SpawnLoc);
+//}
+//
+//UParticleSystemComponent* UStaticFuncLib::SpawnEmitterAtLocationProxy(AActor* WorldContext, UParticleSystem* Template, FVector SpawnLoc, FRotator SpawnRot, bool AutoDestroy)
+//{
+//	return UGameplayStatics::SpawnEmitterAtLocation(WorldContext, Template, SpawnLoc, SpawnRot, AutoDestroy);
+//}
+//
+//void UStaticFuncLib::GetAllActorsOfClassProxy(AActor* WorldContext, TSubclassOf<AActor> Class, TArray<AActor*>& OutFound)
+//{
+//	UGameplayStatics::GetAllActorsOfClass(WorldContext, Class, OutFound);
+//}
 
 void UStaticFuncLib::MakeQBezierPoints(const FVector& P0, const FVector& P1, const FVector& P2, int NumPoints, TArray<FVector>& OutPoints)
 {
@@ -279,10 +279,10 @@ void UStaticFuncLib::ExportToBitmap(const TArray<FColor>& pixels, FString fileNa
 	FFileHelper::CreateBitmap(*(FPaths::GameDir() + fileName + ".bmp"), width, height, pixels.GetData());
 }
 
-class UUserWidget* UStaticFuncLib::CreateWidgetProxy(class APlayerController* Owner, TSubclassOf<class UUserWidget> WidgClass)
-{
-	return UWidgetBlueprintLibrary::Create(Owner, WidgClass, Owner);
-}
+//class UUserWidget* UStaticFuncLib::CreateWidgetProxy(class APlayerController* Owner, TSubclassOf<class UUserWidget> WidgClass)
+//{
+//	return UWidgetBlueprintLibrary::Create(Owner, WidgClass, Owner);
+//}
 
 FLinearColor UStaticFuncLib::ColorFromHex(const FString& Hex)
 {

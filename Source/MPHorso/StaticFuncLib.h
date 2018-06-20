@@ -31,14 +31,14 @@ public:
 	UFUNCTION(BlueprintCallable)
 		static void WordWrap(const FString& inStr, FString& outStr, int OptimalLineLength = 64);
 
-	UFUNCTION(BlueprintCallable)
-		static class AActor* SpawnActorProxy(class AActor* WorldContext, TSubclassOf<AActor> ToSpawn, const FTransform& SpawnLoc);
-
-	UFUNCTION(BlueprintCallable)
-		static class UParticleSystemComponent* SpawnEmitterAtLocationProxy(class AActor* WorldContext, UParticleSystem* Template, FVector SpawnLoc, FRotator SpawnRot, bool AutoDestroy = true);
-
-	UFUNCTION(BlueprintCallable)
-		static void GetAllActorsOfClassProxy(class AActor* WorldContext, TSubclassOf<class AActor> Class, TArray<class AActor*>& OutFound);
+	//UFUNCTION(BlueprintCallable)
+	//	static class AActor* SpawnActorProxy(class AActor* WorldContext, TSubclassOf<AActor> ToSpawn, const FTransform& SpawnLoc);
+	//
+	//UFUNCTION(BlueprintCallable)
+	//	static class UParticleSystemComponent* SpawnEmitterAtLocationProxy(class AActor* WorldContext, UParticleSystem* Template, FVector SpawnLoc, FRotator SpawnRot, bool AutoDestroy = true);
+	//
+	//UFUNCTION(BlueprintCallable)
+	//	static void GetAllActorsOfClassProxy(class AActor* WorldContext, TSubclassOf<class AActor> Class, TArray<class AActor*>& OutFound);
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Construct Quadratic Bezier Points"))
 		static void MakeQBezierPoints(const FVector& P0, const FVector& P1, const FVector& P2, int NumPoints, TArray<FVector>& OutPoints);
@@ -58,8 +58,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 		static void ExportToBitmap(const TArray<FColor>& pixels, FString fileName, int width, int height);
 
-	UFUNCTION(BlueprintCallable)
-		static class UUserWidget* CreateWidgetProxy(class APlayerController* Owner, TSubclassOf<class UUserWidget> WidgClass);
+	//UFUNCTION(BlueprintCallable)
+	//	static class UUserWidget* CreateWidgetProxy(class APlayerController* Owner, TSubclassOf<class UUserWidget> WidgClass);
 
 	UFUNCTION(BlueprintPure)
 		static FLinearColor ColorFromHex(const FString& Hex);
