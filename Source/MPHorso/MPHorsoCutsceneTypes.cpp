@@ -47,37 +47,54 @@ void USpeechSoundSet::Annotate(const FString& InMessage, TArray<int>& OutSoundIn
 
 	// TODO maybe add some sort of constructor kind of deal that sorts the words automatically when saved or bool pressed?
 
-	if (WordSounds.Num() > 0)
+	if (!IsManual)
 	{
-		TArray<FWordSound> WordSoundsCopy = WordSounds;
-		WordSoundsCopy.Sort([](const FWordSound& a, const FWordSound& b) { return a.Word > b.Word; });
-
-		const int MaxCharsNeeded = WordSoundsCopy[0].Word.Len();
-
-		for (int i = 0; i < InMessage.Len() + 1; ++i)
+		if (WordSounds.Num() > 0)
 		{
-			FString Substr = InMessage.RightChop(i).Left(MaxCharsNeeded);
+			TArray<FWordSound> WordSoundsCopy = WordSounds;
+			WordSoundsCopy.Sort([](const FWordSound& a, const FWordSound& b) { return a.Word > b.Word; });
 
-			FWordSound* FoundWord =
-				WordSoundsCopy.FindByPredicate([&Substr](const FWordSound& a) { return Substr.StartsWith(a.Word); });
+			const int MaxCharsNeeded = WordSoundsCopy[0].Word.Len();
 
-			OutSoundIndices.Add(i);
-
-			if (nullptr != FoundWord)
+			for (int i = 0; i < InMessage.Len() + 1; ++i)
 			{
-				OutSounds.Add(FoundWord->Sound);
-				i += FoundWord->Word.Len() - 1;
+				FString Substr = InMessage.RightChop(i).Left(MaxCharsNeeded);
+
+				FWordSound* FoundWord =
+					WordSoundsCopy.FindByPredicate([&Substr](const FWordSound& a) { return Substr.StartsWith(a.Word); });
+
+				OutSoundIndices.Add(i);
+
+				if (nullptr != FoundWord)
+				{
+					OutSounds.Add(FoundWord->Sound);
+					i += FoundWord->Word.Len() - 1;
+				}
+				else if (RandomSounds.Num() > 0)
+					OutSounds.Add(RandomSounds[FMath::RandRange(0, RandomSounds.Num() - 1)]);
 			}
-			else if (RandomSounds.Num() > 0)
+		}
+		else if (RandomSounds.Num() > 0)
+		{
+			for (int i = 0; i < InMessage.Len() + 1; ++i)
+			{
+				OutSoundIndices.Add(i);
 				OutSounds.Add(RandomSounds[FMath::RandRange(0, RandomSounds.Num() - 1)]);
+			}
 		}
 	}
-	else if (RandomSounds.Num() > 0)
+	else
 	{
-		for (int i = 0; i < InMessage.Len() + 1; ++i)
+		// TODO maybe move this out of the soundset and into the AI stuff? This won't be used by any players so it has no business being here.
+
+		TArray<int> KeysCopy;
+		ManualIndices.GenerateKeyArray(KeysCopy);
+		KeysCopy.Sort();
+
+		for (int& currInd : KeysCopy)
 		{
-			OutSoundIndices.Add(i);
-			OutSounds.Add(RandomSounds[FMath::RandRange(0, RandomSounds.Num() - 1)]);
+			OutSoundIndices.Add(currInd);
+			OutSounds.Add(ManualIndices[currInd]);
 		}
 	}
 }

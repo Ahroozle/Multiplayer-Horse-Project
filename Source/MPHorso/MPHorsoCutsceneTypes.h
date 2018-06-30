@@ -151,19 +151,27 @@ class MPHORSO_API USpeechSoundSet : public UObject
 
 public:
 
-	/*
-	These sounds are played on letters/strings that are
-	not covered by sounds mapped within WordSounds;
-	*/
 	UPROPERTY(EditDefaultsOnly)
+		bool IsManual = false;
+
+	/*
+		These sounds are played on letters/strings that are
+		not covered by sounds mapped within WordSounds;
+	*/
+	UPROPERTY(EditDefaultsOnly, meta = (EditCondition = "!IsManual"))
 		TArray<USoundCue*> RandomSounds;
 
 	/*
-	These sounds are played at the start of the specified
-	'word' (just a collection of characters).
+		These sounds are played at the start of the specified
+		'word' (just a collection of characters).
 	*/
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, meta = (EditCondition = "!IsManual"))
 		TArray<FWordSound> WordSounds;
+
+	// Map of letter indices to sounds used.
+	UPROPERTY(EditDefaultsOnly, meta = (EditCondition = "IsManual"))
+		TMap<int, USoundCue*> ManualIndices;
+
 
 	UFUNCTION()
 		void Annotate(const FString& InMessage, TArray<int>& OutSoundIndices, TArray<USoundCue*>& OutSounds);

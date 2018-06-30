@@ -31,42 +31,6 @@ public:
 
 };
 
-//UCLASS(BlueprintType)
-//class MPHORSO_API AMPHorsoCameraGuide : public AActor
-//{
-//	GENERATED_BODY()
-//
-//public:
-//	// Sets default values for this actor's properties
-//	AMPHorsoCameraGuide(const FObjectInitializer& _init);
-//
-//protected:
-//	// Called when the game starts or when spawned
-//	virtual void BeginPlay() override;
-//
-//public:
-//	// Called every frame
-//	virtual void Tick(float DeltaTime) override;
-//
-//	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
-//	virtual void NotifyActorEndOverlap(AActor* OtherActor) override;
-//
-//	void GuideCamera();
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-//		TArray<UArrowComponent*> Arrows;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-//		APawn* StoredObserver;
-//
-//	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-//		FTimerHandle TimerHandle;
-//
-//	UFunction* RetrievedRotFunc;
-//	UFloatProperty* RetrievedNextZoom;
-//
-//};
-
 USTRUCT(BlueprintType)
 struct FCameraGuideLine
 {
