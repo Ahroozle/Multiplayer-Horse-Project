@@ -5,22 +5,26 @@
 #include "UObject/NoExportTypes.h"
 #include "MPHorsoItemTypes.generated.h"
 
+/*
+	TODO
 
-UCLASS(Blueprintable)
-class MPHORSO_API UMPHorsoItemPrefixBlock : public UObject
-{
-	GENERATED_BODY()
+	Concept for amalgam gear:
+	Gear slots		Amalgam gear
+	O				O
+	O				|
+	O				O
+	O				O
+	O				|
 
-public:
+	tl;dr you have to "drag and drop" gear into the slots already,
+	so what if we show it as taking up all the slots of the contained
+	gear already, and only let it be fitted into its proper slottage?
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintPure)
-		void GetRandomPrefix(FName& RandomPrefix);
-	void GetRandomPrefix_Implementation(FName& RandomPrefix) {}
+	Also DEFINITELY decrease inv size, considering this lets the player
+	carry an absolute fuckton more items than normal. Gonna have to edit
+	how gear is saved, too.
+*/
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void ApplyPrefixes(class UMPHorsoItemBase* Focus);
-	void ApplyPrefixes_Implementation(class UMPHorsoItemBase* Focus) {}
-};
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FItemConsumedNotify, class UMPHorsoItemBase*, ConsumedItem);
 
@@ -36,10 +40,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		UTexture* ItemImage;
-
-	// The prefix block that applies to this item or type of item.
-	UPROPERTY(EditDefaultsOnly)
-		TSubclassOf<UMPHorsoItemPrefixBlock> PrefixBlock;
 
 	UPROPERTY(BlueprintReadWrite)
 		TArray<FName> Prefixes;
@@ -69,8 +69,51 @@ public:
 	FString GetFriendlyName_Implementation();
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+		void ApplyPrefixes();
+	virtual void ApplyPrefixes_Implementation() {}
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 		void Use(class AActor* Caller);
 	void Use_Implementation(class AActor* Caller) { if (NumUses > 0 && !(--NumUses)) { ItemConsumedDelegate.Broadcast(this); } }
+
+};
+
+UCLASS(Blueprintable)
+class MPHORSO_API UMPHorsoWeaponItem : public UMPHorsoItemBase
+{
+	GENERATED_BODY()
+
+public:
+
+	// TODO STUFF
+
+	// (also prefixes for weapons n shit)
+
+};
+
+UCLASS(Blueprintable)
+class MPHORSO_API UMPHorsoArmorItem : public UMPHorsoItemBase
+{
+	GENERATED_BODY()
+
+public:
+
+	// TODO STUFF
+
+	// also prefixes for armors n shit
+};
+
+UCLASS(Blueprintable)
+class MPHORSO_API UMPHorsoArmorComboItem : public UMPHorsoArmorItem
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<UMPHorsoArmorItem*> PiecesInSet;
+
+	// TODO STUFF
 
 };
 

@@ -5,7 +5,6 @@
 
 #include "StaticFuncLib.h"
 
-#include "MPHorsoSaveGameTypes.h"
 #include "NPCRuleset.h"
 
 #include "MPHorsoMusicManager.h"
@@ -57,12 +56,15 @@ ERaceType UMPHorsoGameInstance::GetRace()
 	else return ERaceType::Race_EarthP;
 }
 
-void UMPHorsoGameInstance::GetColorSchemeAsArrays(TArray<FName>& OutParts, TArray<FLinearColor>& OutColors)
+void UMPHorsoGameInstance::GetColorSchemeAsArrays(TArray<FName>& OutParts, TArray<FCharColorSchemePart>& OutData)
 {
 	if (nullptr != CharacterSave)
 	{
-		CharacterSave->ColorScheme.GenerateKeyArray(OutParts);
-		CharacterSave->ColorScheme.GenerateValueArray(OutColors);
+		for (auto &currPair : CharacterSave->ColorScheme)
+		{
+			OutParts.Add(currPair.Key);
+			OutData.Add(currPair.Value);
+		}
 	}
 }
 

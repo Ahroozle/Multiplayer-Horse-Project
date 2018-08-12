@@ -3,7 +3,6 @@
 #pragma once
 
 #include "GameFramework/SaveGame.h"
-#include "MPHorsoGameInstance.h"
 #include "NPCGeneralTypes.h"
 #include "MPHorsoItemTypes.h"
 #include "MPHorsoSaveGameTypes.generated.h"
@@ -17,6 +16,32 @@
 
 		Probably also store overworld room data within worldsaves in the form of NPC-relevant states
 */
+
+UENUM(BlueprintType)
+enum class ERaceType : uint8
+{
+	Race_EarthP		UMETA(DisplayName = "Earth Pony"),
+	Race_Pega		UMETA(DisplayName = "Pegasus"),
+	Race_Uni		UMETA(DisplayName = "Unicorn"),
+	RACE_MAX		UMETA(Hidden)
+};
+
+UCLASS(Blueprintable)
+class MPHORSO_API UMPHorsoWorldType : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		FName WorldTypeName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		FString MapToLoad;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (MultiLine = true))
+		FString Description;
+};
 
 /*
 	The base class for saves in MPHorso!
@@ -60,6 +85,21 @@ struct FInvSaveData
 		int Stack;
 };
 
+USTRUCT(BlueprintType)
+struct FCharColorSchemePart
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName SkinSetName;//TAssetSubclassOf<class USkeletalSpriteSkinSetBase> SkinSet;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ValueMin = "0.0"))
+		int RegionSet;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		TArray<FLinearColor> Colors;
+};
+
 /*
 	SaveGame class for characters.
 
@@ -81,7 +121,11 @@ public:
 		ERaceType Race;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
-		TMap<FName, FLinearColor> ColorScheme;
+		TMap<FName, /*FLinearColor*/FCharColorSchemePart> ColorScheme;
+
+	// Container of names of worlds this character has been on.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		TSet<FName> WorldsVisited;
 
 	/*
 		The name of the difficulty the player is at!
@@ -124,6 +168,36 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
 		FString Notes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		TArray<FLinearColor> SaveThumbnailRawData;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		FIntPoint SaveThumbnailDimensions;
+
+	UFUNCTION(BlueprintCallable)
+		static UTexture2D* RegenerateThumbnail(UCharacterSaveBase* CharSave)
+		{
+			if (nullptr != CharSave && CharSave->SaveThumbnailDimensions.SizeSquared() > 0)
+			{
+				UTexture2D* NewTex = UTexture2D::CreateTransient(CharSave->SaveThumbnailDimensions.X,
+																 CharSave->SaveThumbnailDimensions.Y);
+
+				auto& MipZero = NewTex->PlatformData->Mips[0];
+
+				FColor* MipData = static_cast<FColor*>(MipZero.BulkData.Lock(LOCK_READ_WRITE));
+
+				for (int i = 0; i < CharSave->SaveThumbnailRawData.Num(); ++i)
+					MipData[i] = CharSave->SaveThumbnailRawData[i].ToFColor(true);
+
+				MipZero.BulkData.Unlock();
+				NewTex->UpdateResource();
+
+				return NewTex;
+			}
+
+			return nullptr;
+		}
 
 	virtual FString GetGeneratedFileName() const override;
 	
@@ -289,8 +363,7 @@ struct FWorldSettingsData
 	/*
 		Enemy Viciousness Multiplier. This determines spawn rates
 		for higher-powered enemies and whether or not enemies use
-		more vicious actions (like debuff-causing attacks or looting
-		your corpse).
+		more vicious actions (like debuff-causing attacks).
 	*/
 	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
 		float EnemyViciousness = 1;
@@ -298,6 +371,12 @@ struct FWorldSettingsData
 	/*
 		Loot Stinginess Divider. This determines how hard literally
 		getting anything is. Applies to both enemies and chests.
+
+		At high enough stinginess, chests may randomly already be
+		opened. Any items that the chest may have had can be purchased
+		at a special shop that only opens once the stinginess is high
+		enough to interfere with chests. (Of course in a story sense,
+		the person running the shop is the one pilfering the chests.)
 	*/
 	UPROPERTY(BlueprintReadWrite, Category = "World Settings")
 		float LootStinginess = 1;
@@ -357,6 +436,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
 		FString WorldName;
 
+	// Has this world ever been used as a multiplayer world?
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
+		bool HasEverBeenHosted = false;
+
 	UPROPERTY(BlueprintReadWrite, Category = "World Save")
 		FWorldSettingsData WorldSettings;
 
@@ -395,12 +478,6 @@ UCLASS()
 class MPHORSO_API USaveGameHelperLibrary : public UObject
 {
 	GENERATED_BODY()
-	
-	static FWorldSettingsData MinSettings;
-	static bool MinSettingsSet;
-
-	static FWorldSettingsData MaxSettings;
-	static bool MaxSettingsSet;
 
 public:
 	
@@ -418,9 +495,9 @@ public:
 		static void GenUIDForWSave(UWorldSaveBase* NewSave, const TArray<UWorldSaveBase*>& OtherExistingSaves);
 
 	UFUNCTION(BlueprintPure)
-		static FWorldSettingsData& GetWorldSettingsMinimums();
+		static FWorldSettingsData GetWorldSettingsMinimums();
 	UFUNCTION(BlueprintPure)
-		static FWorldSettingsData& GetWorldSettingsMaximums();
+		static FWorldSettingsData GetWorldSettingsMaximums();
 
 	UFUNCTION(BlueprintPure)
 		static float CalculateHostilityPercentage(const FWorldSettingsData& WorldData, float& EnemyHostility, float& WeatherHostility, float& FateHostility);
@@ -446,6 +523,6 @@ private:
 		static UWorldSaveBase* UpdateOutdatedWorldSave(UObject* WorldContext, const UWorldSaveBase* OutdatedWSave);
 
 	UFUNCTION()
-		static UMPHorsoSaveBase* SaveUpdateHelper(UMPHorsoGameInstance* GameInst, UMPHorsoSaveBase* Start);
+		static UMPHorsoSaveBase* SaveUpdateHelper(UObject* WorldContext, UMPHorsoSaveBase* Start);
 
 };

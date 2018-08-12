@@ -3,13 +3,13 @@
 #pragma once
 
 #include "Engine/GameInstance.h"
+
+#include "MPHorsoSaveGameTypes.h"
+
 #include "MPHorsoGameInstance.generated.h"
 
 
 class UCameraComponent;
-
-class UCharacterSaveBase;
-class UWorldSaveBase;
 
 class UNPCRuleBlock;
 
@@ -18,37 +18,11 @@ class AMPHorsoMusicManager;
 class ANPCNavManager;
 
 UENUM(BlueprintType)
-enum class ERaceType : uint8
-{
-	Race_EarthP		UMETA(DisplayName="Earth Pony"),
-	Race_Pega		UMETA(DisplayName="Pegasus"),
-	Race_Uni		UMETA(DisplayName="Unicorn"),
-	RACE_MAX		UMETA(Hidden)
-};
-
-UENUM(BlueprintType)
 enum class EAccessControlType : uint8
 {
 	AC_None			UMETA(DisplayName="None"),
 	AC_Blacklist	UMETA(DisplayName="Blacklist"),
 	AC_Whitelist	UMETA(DisplayName="Whitelist")
-};
-
-UCLASS(Blueprintable)
-class MPHORSO_API UMPHorsoWorldType : public UObject
-{
-	GENERATED_BODY()
-
-public:
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-		FName WorldTypeName;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-		FString MapToLoad;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (MultiLine = true))
-		FString Description;
 };
 
 /**
@@ -105,7 +79,7 @@ public:
 		the string name of the world to load.
 	*/
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		TMap<FName, TSubclassOf<UMPHorsoWorldType>> WorldTypes;//TMap<FName, FString> WorldTypes;
+		TMap<FName, TSubclassOf<class UMPHorsoWorldType>> WorldTypes;//TMap<FName, FString> WorldTypes;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<FString> RuntimeErrorList;
@@ -179,7 +153,7 @@ public:
 		ERaceType GetRace();
 
 	UFUNCTION(BlueprintPure)
-		void GetColorSchemeAsArrays(TArray<FName>& OutParts, TArray<FLinearColor>& OutColors);
+		void GetColorSchemeAsArrays(TArray<FName>& OutParts, TArray<FCharColorSchemePart>& OutData);
 
 	UFUNCTION(BlueprintPure)
 		FName GetLocalPlayerName();

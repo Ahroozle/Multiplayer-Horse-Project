@@ -14,6 +14,9 @@
 
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Slate/SceneViewport.h"
+#include "Components/Button.h"
 
 #include "Developer/DesktopPlatform/Public/DesktopPlatformModule.h"
 
@@ -284,9 +287,33 @@ void UStaticFuncLib::ExportToBitmap(const TArray<FColor>& pixels, FString fileNa
 //	return UWidgetBlueprintLibrary::Create(Owner, WidgClass, Owner);
 //}
 
-FLinearColor UStaticFuncLib::ColorFromHex(const FString& Hex)
+FLinearColor UStaticFuncLib::ColorFromHex(const FString& Hex, bool sRGB)
 {
-	return FLinearColor::FromSRGBColor(FColor::FromHex(Hex));
+	FColor StartCol = FColor::FromHex(Hex);
+
+	FLinearColor EndCol;
+	if (sRGB)
+	{
+		float red = StartCol.R / 255.0f;
+		float green = StartCol.G / 255.0f;
+		float blue = StartCol.B / 255.0f;
+		float alpha = StartCol.A / 255.0f;
+
+		red = red <= 0.04045f ? red / 12.92f : FMath::Pow((red + 0.055f) / 1.055f, 2.4f);
+		green = green <= 0.04045f ? green / 12.92f : FMath::Pow((green + 0.055f) / 1.055f, 2.4f);
+		blue = blue <= 0.04045f ? blue / 12.92f : FMath::Pow((blue + 0.055f) / 1.055f, 2.4f);
+
+		EndCol = { red, green, blue, alpha };
+	}
+	else
+		EndCol = FLinearColor(StartCol.R / 255.0f, StartCol.G / 255.0f, StartCol.B / 255.0f, StartCol.A / 255.0f);
+
+	return EndCol;
+}
+
+FString UStaticFuncLib::HexFromColor(FLinearColor Color, bool sRGB)
+{
+	return Color.ToFColor(sRGB).ToHex();
 }
 
 FString UStaticFuncLib::GetGameDirectory() { return FPaths::GameDir(); }
@@ -461,4 +488,633 @@ float UStaticFuncLib::CalcWaterSurface(FVector Point, float Scale, float Time)
 	z += (sin(Point.X * 1.0 / Scale + Time * 1.0) + sin(Point.X * 2.3 / Scale + Time * 1.5) + sin(Point.X * 3.3 / Scale + Time * 0.4)) / 3.0;
 	z += (sin(Point.Y * 0.2 / Scale + Time * 1.8) + sin(Point.Y * 1.8 / Scale + Time * 1.8) + sin(Point.Y * 2.8 / Scale + Time * 0.8)) / 3.0;
 	return z;
+}
+
+void UStaticFuncLib::MakeComplementaryColorScheme(FLinearColor Root, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals)
+{
+	FLinearColor RootHSV = Root.LinearRGBToHSV();
+
+	float Hue = RootHSV.R;
+	float Sat = (InSatVals.Num() > 0 ? InSatVals[0].X : RootHSV.G);
+	float Val = (InSatVals.Num() > 0 ? InSatVals[0].Y : RootHSV.B);
+
+	OutColors.Add(FLinearColor(Hue, Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 1)
+	{
+		Sat = InSatVals[1].X;
+		Val = InSatVals[1].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	FLinearColor ComplementHSV(FMath::Fmod(Hue + 180, 360), Sat, Val);
+
+	OutColors.Add(ComplementHSV.HSVToLinearRGB());
+}
+
+void UStaticFuncLib::MakeAnalogousColorScheme(FLinearColor Root, int NumColors, float AngleHSV, TArray<FLinearColor>& OutColors,
+	const TArray<FVector2D>& InSatVals)
+{
+	FLinearColor RootHSV = Root.LinearRGBToHSV();
+
+	float Hue = RootHSV.R;
+	float Sat = (InSatVals.Num() > 0 ? InSatVals[0].X : RootHSV.G);
+	float Val = (InSatVals.Num() > 0 ? InSatVals[0].Y : RootHSV.B);
+
+	OutColors.Add(FLinearColor(Hue, Sat, Val).HSVToLinearRGB());
+
+	if (NumColors > 1)
+	{
+		while (--NumColors)
+		{
+			if (InSatVals.Num() > OutColors.Num())
+			{
+				Sat = InSatVals[OutColors.Num()].X;
+				Val = InSatVals[OutColors.Num()].Y;
+			}
+			else if (InSatVals.Num() > 0)
+			{
+				Sat = InSatVals.Last().X;
+				Val = InSatVals.Last().Y;
+			}
+
+			Hue = FMath::Fmod(Hue + AngleHSV, 360);
+			OutColors.Add(FLinearColor(Hue, Sat, Val).HSVToLinearRGB());
+		}
+	}
+}
+
+void UStaticFuncLib::MakeTriadicColorScheme(FLinearColor Root, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals)
+{
+	FLinearColor RootHSV = Root.LinearRGBToHSV();
+
+	float Hue = RootHSV.R;
+	float Sat = (InSatVals.Num() > 0 ? InSatVals[0].X : RootHSV.G);
+	float Val = (InSatVals.Num() > 0 ? InSatVals[0].Y : RootHSV.B);
+
+	OutColors.Add(FLinearColor(Hue, Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 1)
+	{
+		Sat = InSatVals[1].X;
+		Val = InSatVals[1].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 120, 360), Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 2)
+	{
+		Sat = InSatVals[2].X;
+		Val = InSatVals[2].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 240, 360), Sat, Val).HSVToLinearRGB());
+}
+
+void UStaticFuncLib::MakeSplitComplementaryColorScheme(FLinearColor Root, float SplitAngleHSV, TArray<FLinearColor>& OutColors,
+	const TArray<FVector2D>& InSatVals)
+{
+	FLinearColor RootHSV = Root.LinearRGBToHSV();
+
+	float Hue = RootHSV.R;
+	float Sat = (InSatVals.Num() > 0 ? InSatVals[0].X : RootHSV.G);
+	float Val = (InSatVals.Num() > 0 ? InSatVals[0].Y : RootHSV.B);
+
+	OutColors.Add(FLinearColor(Hue, Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 1)
+	{
+		Sat = InSatVals[1].X;
+		Val = InSatVals[1].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 180 + SplitAngleHSV, 360), Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 2)
+	{
+		Sat = InSatVals[2].X;
+		Val = InSatVals[2].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 180 - SplitAngleHSV, 360), Sat, Val).HSVToLinearRGB());
+
+}
+
+void UStaticFuncLib::MakeTetradicColorScheme(FLinearColor Root, float SplitAngleHSV, TArray<FLinearColor>& OutColors,
+	const TArray<FVector2D>& InSatVals)
+{
+	FLinearColor RootHSV = Root.LinearRGBToHSV();
+
+	float Hue = RootHSV.R;
+	float Sat = (InSatVals.Num() > 0 ? InSatVals[0].X : RootHSV.G);
+	float Val = (InSatVals.Num() > 0 ? InSatVals[0].Y : RootHSV.B);
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue  + SplitAngleHSV, 360), Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 1)
+	{
+		Sat = InSatVals[1].X;
+		Val = InSatVals[1].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue - SplitAngleHSV, 360), Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 2)
+	{
+		Sat = InSatVals[2].X;
+		Val = InSatVals[2].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 180 + SplitAngleHSV, 360), Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 3)
+	{
+		Sat = InSatVals[3].X;
+		Val = InSatVals[3].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 180 - SplitAngleHSV, 360), Sat, Val).HSVToLinearRGB());
+}
+
+void UStaticFuncLib::MakeSquareColorScheme(FLinearColor Root, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals)
+{
+	FLinearColor RootHSV = Root.LinearRGBToHSV();
+
+	float Hue = RootHSV.R;
+	float Sat = (InSatVals.Num() > 0 ? InSatVals[0].X : RootHSV.G);
+	float Val = (InSatVals.Num() > 0 ? InSatVals[0].Y : RootHSV.B);
+
+	OutColors.Add(FLinearColor(Hue, Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 1)
+	{
+		Sat = InSatVals[1].X;
+		Val = InSatVals[1].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 90, 360), Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 2)
+	{
+		Sat = InSatVals[2].X;
+		Val = InSatVals[2].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 180, 360), Sat, Val).HSVToLinearRGB());
+
+	if (InSatVals.Num() > 3)
+	{
+		Sat = InSatVals[3].X;
+		Val = InSatVals[3].Y;
+	}
+	else if (InSatVals.Num() > 0)
+	{
+		Sat = InSatVals.Last().X;
+		Val = InSatVals.Last().Y;
+	}
+
+	OutColors.Add(FLinearColor(FMath::Fmod(Hue + 270, 360), Sat, Val).HSVToLinearRGB());
+}
+
+void UStaticFuncLib::MakeMonochromeColorScheme(FLinearColor Root, int NumColors, FVector2D IntervalRange, TArray<FLinearColor>& OutColors)
+{
+	FLinearColor RootHSV = Root.LinearRGBToHSV();
+
+	float Hue = RootHSV.R;
+	float Sat = RootHSV.G;
+	float Val = RootHSV.B + FMath::FRandRange(IntervalRange.X, IntervalRange.Y);
+
+	OutColors.Add(Root);
+
+	if (NumColors > 1)
+	{
+		while (--NumColors)
+		{
+			OutColors.Add(FLinearColor(Hue, Sat, Val).HSVToLinearRGB());
+			Val += FMath::FRandRange(IntervalRange.X, IntervalRange.Y);
+		}
+	}
+}
+
+void UStaticFuncLib::MakeRandomColorScheme(int NumColors, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals,
+	float AnalogousHueAngle, float SplitCompHueAngle, float TetradicHueAngle, FVector2D MonochromeValRange)
+{
+	FLinearColor RandomRoot = FLinearColor(FMath::FRandRange(0.0f, 359.0f), 1, 1).HSVToLinearRGB();
+
+	if (NumColors > 1)
+	{
+		enum ColorSchemesEnum
+		{
+			Complementary,
+			Analog,
+			Triad,
+			Split,
+			Tetrad,
+			Square,
+			Monochrome
+		};
+
+		TArray<ColorSchemesEnum> ValidSchemes;
+
+		if (NumColors == 2) ValidSchemes = {Complementary, Analog, Monochrome};
+		else if (NumColors == 3) ValidSchemes = {Analog, Triad, Split, Monochrome};
+		else if (NumColors == 4) ValidSchemes = {Analog, Tetrad, Square, Monochrome};
+		else ValidSchemes = {Analog, Monochrome};
+
+		switch (ValidSchemes[FMath::RandRange(0, ValidSchemes.Num() - 1)])
+		{
+		case Complementary:
+			MakeComplementaryColorScheme(RandomRoot, OutColors, InSatVals);
+			break;
+
+		case Analog:
+			MakeAnalogousColorScheme(RandomRoot, NumColors, AnalogousHueAngle, OutColors, InSatVals);
+			break;
+
+		case Triad:
+			MakeTriadicColorScheme(RandomRoot, OutColors, InSatVals);
+			break;
+
+		case Split:
+			MakeSplitComplementaryColorScheme(RandomRoot, SplitCompHueAngle, OutColors, InSatVals);
+			break;
+
+		case Tetrad:
+			MakeTetradicColorScheme(RandomRoot, TetradicHueAngle, OutColors, InSatVals);
+			break;
+
+		case Square:
+			MakeSquareColorScheme(RandomRoot, OutColors, InSatVals);
+			break;
+
+		default:
+			Print("UStaticFuncLib::MakeRandomColorScheme: Invalid color scheme rolled! Remember to add support for it in this function.", true);
+		case Monochrome:
+			MakeMonochromeColorScheme(RandomRoot, NumColors, MonochromeValRange, OutColors);
+			break;
+		}
+	}
+	else
+		OutColors.Add(RandomRoot);
+}
+
+void UStaticFuncLib::MakeRandomHorseColorScheme(TArray<FLinearColor>& OutColors, int BodyColors, int HairColors, int EyeColors)
+{
+	// TODO ALLOW USER OVERRIDES
+
+	if (BodyColors > 0 && HairColors > 0 && EyeColors > 0)
+	{
+		// Get root (body) Hue
+		float BodyHue = FMath::FRandRange(0, 359.9f);
+		float EyeHue, HairHue;
+
+		if (FMath::RandBool()) 
+		{
+			if (FMath::RandBool())
+			{
+				// Split compliment color scheme.
+
+				float ComplementAngle = FMath::FRandRange(10, 40) * (FMath::RandBool() ? -1 : 1);
+
+				EyeHue = FMath::Fmod(BodyHue + ComplementAngle + 180, 360);
+				HairHue = FMath::Fmod(BodyHue + (ComplementAngle * 2), 360);
+			}
+			else
+			{
+
+				// Semi-tetrad color scheme.
+
+				float TetAngle = FMath::FRandRange(10, 70);
+
+				HairHue = FMath::Fmod(BodyHue + TetAngle, 360);
+				EyeHue = FMath::Fmod(BodyHue + 180, 360);
+			}
+		}
+		else
+		{
+			// Analogous color scheme.
+
+			float MoveAngle = FMath::FRandRange(6, 14);
+
+			TArray<float> Analogs =
+			{
+				BodyHue,
+				BodyHue + MoveAngle,
+				BodyHue + (MoveAngle * 2),
+				BodyHue + (MoveAngle * 3),
+				BodyHue + (MoveAngle * 4)
+			};
+
+			int RandInd = FMath::RandRange(0, Analogs.Num() - 1);
+
+			BodyHue = Analogs[RandInd];
+			Analogs.RemoveAt(RandInd);
+
+			RandInd = FMath::RandRange(0, Analogs.Num() - 1);
+
+			HairHue = Analogs[RandInd];
+			Analogs.RemoveAt(RandInd);
+
+			RandInd = FMath::RandRange(0, Analogs.Num() - 1);
+
+			EyeHue = Analogs[RandInd];
+			Analogs.RemoveAt(RandInd);
+		}
+
+
+		TArray<float> BodyHues = { BodyHue }, HairHues = { HairHue }, EyeHues = { EyeHue };
+
+		if (BodyColors > 1)
+		{
+			// Analogous Extras
+
+			while (--BodyColors)
+				BodyHues.Add(FMath::Fmod(BodyHue + (FMath::RandRange(1, 5) * 6.0f), 360));
+		}
+
+		if (HairColors > 1)
+		{
+			float FocusHue;
+			if (FMath::RandBool())
+			{
+				if (FMath::RandBool())
+					FocusHue = HairHue; // Analogous Extras
+				else
+					FocusHue = FMath::Fmod(HairHue + (60.0f * (FMath::RandBool() ? -1 : 1)), 360); // Semi-Triad Extras
+			}
+			else
+				FocusHue = FMath::Fmod(HairHue + 180, 360); // Complementary Extras
+
+			while (--HairColors)
+				HairHues.Add(FMath::Fmod(BodyHue + (FMath::RandRange(1, 10) * 6.0f), 360));
+		}
+
+		if (EyeColors > 1)
+		{
+			// Analogous Extras
+
+			while (--EyeColors)
+				EyeHues.Add(FMath::Fmod(EyeHue + (FMath::RandRange(1, 5) * 6.0f), 360));
+		}
+
+
+		// Mess with the Saturations and Values a bit. REMEMBER: Sat + Val >= 1! Makes sure colors stay bright!
+
+		TArray<FLinearColor> BodCols, HairCols, EyeCols;
+
+		float Sat, Val;
+
+		for (float& currHue : BodyHues)
+		{
+			//if (FMath::RandBool())
+			//{
+			//	if (FMath::RandBool())
+			//		Val = FMath::FRandRange(FMath::Max(1 - (Sat = FMath::FRand()), 0.5f), 1);
+			//	else
+			//		Sat = FMath::FRandRange(1 - (Val = FMath::FRandRange(.2f, 1)), 1);
+			//}
+			//else
+			//	Sat = Val = 1;
+			//
+			//BodCols.Add(FLinearColor(currHue, Sat, Val).HSVToLinearRGB());
+
+			Sat = FMath::FRandRange(0.1f, 0.9f);
+			if (FMath::RandBool())
+				Val = FMath::FRandRange(0.5f, 1.0f);
+			else
+				Val = 1;
+
+			BodCols.Add(FLinearColor(currHue, Sat, Val).HSVToLinearRGB());
+
+		}
+
+		for (float& currHue : HairHues)
+		{
+			if (FMath::RandBool())
+			{
+				if (FMath::RandBool())
+					Val = FMath::FRandRange(1 - (Sat = FMath::FRand()), 1);
+				else
+					Sat = FMath::FRandRange(1 - (Val = FMath::FRand()), 1);
+			}
+			else
+				Sat = Val = 1;
+
+			HairCols.Add(FLinearColor(currHue, Sat, Val).HSVToLinearRGB());
+		}
+
+		for (float& currHue : EyeHues)
+		{
+			if (FMath::RandBool())
+			{
+				if (FMath::RandBool())
+					Val = FMath::FRandRange(1 - (Sat = FMath::FRandRange(0.3f,1)), 1);
+				else
+					Sat = FMath::FRandRange(FMath::Max(1 - (Val = FMath::FRand()), 0.2f), 1);
+			}
+			else
+				Sat = Val = 1;
+
+			EyeCols.Add(FLinearColor(currHue, Sat, Val).HSVToLinearRGB());
+		}
+
+		OutColors.Append(BodCols);
+		OutColors.Append(HairCols);
+		OutColors.Append(EyeCols);
+	}
+}
+
+UTexture2D* UStaticFuncLib::MakeTextureForColorScheme(const TArray<FLinearColor>& Colors)
+{
+	UTexture2D* NewTex = UTexture2D::CreateTransient(Colors.Num(), 1);
+
+	NewTex->Filter = TextureFilter::TF_Nearest;
+
+	auto& MipZero = NewTex->PlatformData->Mips[0];
+
+	FColor* MipData = static_cast<FColor*>(MipZero.BulkData.Lock(LOCK_READ_WRITE));
+
+	for (int i = 0; i < Colors.Num(); ++i)
+		MipData[i] = Colors[i].ToFColor(true);
+
+	MipZero.BulkData.Unlock();
+	NewTex->UpdateResource();
+
+	return NewTex;
+}
+
+FVector2D UStaticFuncLib::ViewportToAbsolute(UObject* WorldContextObject, FVector2D ViewportPosition)
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject);
+	if (World && World->IsGameWorld())
+	{
+		if (UGameViewportClient* ViewportClient = World->GetGameViewport())
+		{
+			if (FSceneViewport* Viewport = ViewportClient->GetGameViewport())
+			{
+				FVector2D ViewportSize;
+				ViewportClient->GetViewportSize(ViewportSize);
+
+				FVector2D PixelPosition = ViewportPosition * UWidgetLayoutLibrary::GetViewportScale(ViewportClient);
+
+				FVector2D AbsoluteDesktopCoordinate = Viewport->ViewportToVirtualDesktopPixel(PixelPosition / ViewportSize);
+
+				return AbsoluteDesktopCoordinate;
+			}
+		}
+	}
+
+	return FVector2D(0, 0);
+}
+
+FVector2D UStaticFuncLib::ViewportToLocal(UObject* WorldContextObject, const FGeometry& Geometry, FVector2D ViewportPosition)
+{
+	FVector2D AbsoluteCoordinate = ViewportToAbsolute(WorldContextObject, ViewportPosition);
+	return Geometry.AbsoluteToLocal(AbsoluteCoordinate);
+}
+
+void UStaticFuncLib::ReleaseButton(UButton* Button)
+{
+	TSharedPtr<SWidget> RetrievedCached = Button->GetCachedWidget();
+
+	if (RetrievedCached.IsValid())
+	{
+		FPointerEvent Dummy(0, {}, {}, {}, EKeys::LeftMouseButton, 0, FModifierKeysState());
+		RetrievedCached->OnMouseButtonUp(Button->GetCachedGeometry(), Dummy);
+	}
+}
+
+void UStaticFuncLib::LeaveButton(class UButton* Button)
+{
+	TSharedPtr<SWidget> RetrievedCached = Button->GetCachedWidget();
+
+	if (RetrievedCached.IsValid())
+	{
+		FPointerEvent Dummy(0, {}, {}, {}, EKeys::LeftMouseButton, 0, FModifierKeysState());
+		RetrievedCached->OnMouseLeave(Dummy);
+	}
+}
+
+FLinearColor UStaticFuncLib::GetColorAtScreenPos(FVector2D ScreenPos)
+{
+	//float Gamma = 1;//DisplayGamma.Get(2.2f) / 2.2f; // TODO somehow get the actual gamma (although everything seems to really want to stop me)
+	return FPlatformMisc::GetScreenPixelColor(ScreenPos/*, Gamma*/);
+}
+
+FLinearColor UStaticFuncLib::GetColorAtCursorPos()
+{
+	return FPlatformMisc::GetScreenPixelColor(FSlateApplication::Get().GetCursorPos()/*, Gamma*/);
+}
+
+void UStaticFuncLib::SetToPreTick(UWidget* Widget, FString FuncName)
+{
+	FSlateApplication::Get().OnPreTick().AddUFunction(Widget, *FuncName);
+}
+
+void UStaticFuncLib::ClearAllFromPreTick(UWidget* Widget)
+{
+	FSlateApplication::Get().OnPreTick().RemoveAll(Widget);
+}
+
+void UStaticFuncLib::ForceCursorQuery()
+{
+	FSlateApplication::Get().QueryCursor();
+}
+
+UTexture2D* UStaticFuncLib::MakeTextureFromRenderTarget(UTextureRenderTarget2D* Target, TArray<FLinearColor>& OutColors, bool InvertOpacity)
+{
+	if (nullptr != Target)
+	{
+		UTexture2D* ConstructedTex = Target->ConstructTexture2D((UObject*)GetTransientPackage(), "NewRT_Tex", EObjectFlags::RF_NoFlags);
+
+		auto& MipZero = ConstructedTex->PlatformData->Mips[0];
+
+		if (ConstructedTex->Source.GetFormat() == TSF_BGRA8)
+		{
+			FColor* MipData = static_cast<FColor*>(MipZero.BulkData.Lock(LOCK_READ_WRITE));
+
+			int TotalCells = (ConstructedTex->GetSizeY() - 1) * ConstructedTex->GetSurfaceWidth() + (ConstructedTex->GetSizeX() - 1);
+
+			for (int i = 0; i <= TotalCells; ++i)
+			{
+				if (InvertOpacity)
+					MipData[i].A = 255 - MipData[i].A;
+
+				OutColors.Add(MipData[i]);
+			}
+		}
+		else if (ConstructedTex->Source.GetFormat() == TSF_RGBA16F)
+		{
+			FFloat16Color* MipData = static_cast<FFloat16Color*>(MipZero.BulkData.Lock(LOCK_READ_WRITE));
+
+			int TotalCells = (ConstructedTex->GetSizeY() - 1) * ConstructedTex->GetSurfaceWidth() + (ConstructedTex->GetSizeX() - 1);
+
+			for (int i = 0; i <= TotalCells; ++i)
+			{
+				if (InvertOpacity)
+					MipData[i].A = 1.0f - MipData[i].A;
+
+				OutColors.Add({ MipData[i].R,MipData[i].G,MipData[i].B,MipData[i].A });
+			}
+		}
+
+		if (MipZero.BulkData.IsLocked())
+		{
+			MipZero.BulkData.Unlock();
+			ConstructedTex->UpdateResource();
+		}
+
+		return ConstructedTex;
+	}
+
+	return nullptr;
 }

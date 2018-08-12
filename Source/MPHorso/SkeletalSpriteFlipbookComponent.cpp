@@ -10,16 +10,80 @@
 #include "OneShotAudio.h"
 
 
+void USkeletalSpriteSkinSet::GetSkins(TMap<FName, UPaperFlipbook*>& ToPopulate, int RegionSet)
+{
+	ToPopulate = Skins;
+}
+
+void USkeletalSpriteSkinSetRegioned::GetSkins(TMap<FName, UPaperFlipbook*>& ToPopulate, int RegionSet)
+{
+	for (auto &currPair : Skins)
+		ToPopulate.Add(currPair.Key, currPair.Value.Variants[FMath::Min(RegionSet, currPair.Value.Variants.Num() - 1)]);
+}
+
 void USkeletalSpriteFlipbookComponent::BeginPlay()
 {
 	if (nullptr != SkinSet)
-		LocalSkins = SkinSet.GetDefaultObject()->Skins;
-	SkinSet = nullptr;
+	{
+		SkinSet.GetDefaultObject()->GetSkins(LocalSkins, CurrentRegionSet);
+		UsesRegions = SkinSet.GetDefaultObject()->GetNumRegions(CurrentRegionSet) > 1;
+	}
+
+	if (DiscardSkinsetAfterUse)
+		SkinSet = nullptr;
+
+	UpdateRegions();
 }
-void USkeletalSpriteFlipbookComponent::ChangeSkin(TSubclassOf<USkeletalSpriteSkinSet> NewSkin)
+
+void USkeletalSpriteFlipbookComponent::ChangeSkin(TSubclassOf<USkeletalSpriteSkinSetBase> NewSkin, int RegionSet)
 {
 	if (nullptr != NewSkin)
-		LocalSkins = NewSkin.GetDefaultObject()->Skins;
+	{
+		CurrentRegionSet = RegionSet;
+		NewSkin.GetDefaultObject()->GetSkins(LocalSkins, CurrentRegionSet);
+		UsesRegions = NewSkin.GetDefaultObject()->GetNumRegions(CurrentRegionSet) > 1;
+		UPaperFlipbook* foundSkin = LocalSkins.FindRef("Default");
+
+		if (nullptr != foundSkin)
+		{
+			SetFlipbook(foundSkin);
+			SetPlaybackPositionInFrames(0, false);
+			SetLooping(false);
+			Play();
+		}
+
+		if (!DiscardSkinsetAfterUse)
+			SkinSet = NewSkin;
+
+		UpdateRegions();
+	}
+}
+
+void USkeletalSpriteFlipbookComponent::SetRegionColors(const TArray<FLinearColor>& Colors)
+{
+	FMemory::Memcpy(RegionColors, Colors.GetData(), sizeof(FLinearColor) * 10);
+
+	UpdateRegions();
+}
+
+void USkeletalSpriteFlipbookComponent::UpdateRegions()
+{
+	if (UsesRegions)
+	{
+		SpriteColor = FLinearColor::White;
+		if (nullptr == DynMat)
+			DynMat = CreateDynamicMaterialInstance(0);
+
+		TArray<FLinearColor> Compat;
+		Compat.Append(RegionColors, 10);
+
+		//if (nullptr == RegionColorTex)
+			RegionColorTex = UStaticFuncLib::MakeTextureForColorScheme(Compat);
+
+		DynMat->SetTextureParameterValue("RegionColors", RegionColorTex);
+	}
+	else if (nullptr != DynMat)
+		DynMat->SetTextureParameterValue("RegionColors", nullptr);
 }
 
 void USkeletalSpriteFlipbookComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

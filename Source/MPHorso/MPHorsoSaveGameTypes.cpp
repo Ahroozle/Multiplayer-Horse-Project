@@ -3,6 +3,8 @@
 #include "MPHorso.h"
 #include "MPHorsoSaveGameTypes.h"
 
+#include "MPHorsoGameInstance.h"
+
 #include "Paths.h"
 #include "PlatformFile.h"
 #include "PlatformFilemanager.h"
@@ -42,12 +44,6 @@ FString UWorldSaveBase::GetGeneratedFileName() const
 	return "WSave_" + FString::FromInt(UniqueID)  + "_" + CleanedWorldName + "_" + VersionString;
 }
 
-
-FWorldSettingsData USaveGameHelperLibrary::MinSettings;
-bool USaveGameHelperLibrary::MinSettingsSet = false;
-
-FWorldSettingsData USaveGameHelperLibrary::MaxSettings;
-bool USaveGameHelperLibrary::MaxSettingsSet = false;
 
 void USaveGameHelperLibrary::GetSaveNames(TArray<FString>& OutCharacterFileNames, TArray<FString>& OutWorldFileNames)
 {
@@ -240,8 +236,13 @@ UWorldSaveBase* USaveGameHelperLibrary::UpdateOutdatedWorldSave(UObject* WorldCo
 	return (UWorldSaveBase*)SaveUpdateHelper(GameInst, CurrNewSave);
 }
 
-UMPHorsoSaveBase* USaveGameHelperLibrary::SaveUpdateHelper(UMPHorsoGameInstance* GameInst, UMPHorsoSaveBase* Start)
+UMPHorsoSaveBase* USaveGameHelperLibrary::SaveUpdateHelper(UObject* WorldContext, UMPHorsoSaveBase* Start)
 {
+	UMPHorsoGameInstance* GameInst = UStaticFuncLib::RetrieveGameInstance(WorldContext);
+
+	if (nullptr == GameInst)
+		return nullptr;
+
 	UMPHorsoSaveBase* CurrNewSave = Start;
 
 	TArray<TSubclassOf<UMPHorsoSaveBase>> PreviousClasses;
@@ -277,48 +278,42 @@ UMPHorsoSaveBase* USaveGameHelperLibrary::SaveUpdateHelper(UMPHorsoGameInstance*
 	return CurrNewSave;
 }
 
-FWorldSettingsData& USaveGameHelperLibrary::GetWorldSettingsMinimums()
+FWorldSettingsData USaveGameHelperLibrary::GetWorldSettingsMinimums()
 {
-	if (!MinSettingsSet)
-	{
-		MinSettingsSet = true;
+	FWorldSettingsData MinSettings;
 
-		MinSettings.WeatherIntensity = { 0,0 };
-		MinSettings.WeatherFrequency = 1;
-		MinSettings.EnemyDensity = 0;
-		MinSettings.EnemyStrength = .5f;
-		MinSettings.EnemyViciousness = 1;
-		MinSettings.LootStinginess = .5;
-		MinSettings.RandomSpawnLocation = false;
-		MinSettings.NoSavior = false;
-		MinSettings.Alone = false;
+	MinSettings.WeatherIntensity = { 0,0 };
+	MinSettings.WeatherFrequency = 1;
+	MinSettings.EnemyDensity = 0;
+	MinSettings.EnemyStrength = .5f;
+	MinSettings.EnemyViciousness = 1;
+	MinSettings.LootStinginess = .5;
+	MinSettings.RandomSpawnLocation = false;
+	MinSettings.NoSavior = false;
+	MinSettings.Alone = false;
 
-		float EHDummy, WHDummy, FHDummy;
-		MinSettings.TotalHostility = CalculateHostilityPercentage(MinSettings, EHDummy, WHDummy, FHDummy);
-	}
+	float EHDummy, WHDummy, FHDummy;
+	MinSettings.TotalHostility = CalculateHostilityPercentage(MinSettings, EHDummy, WHDummy, FHDummy);
 
 	return MinSettings;
 }
 
-FWorldSettingsData& USaveGameHelperLibrary::GetWorldSettingsMaximums()
+FWorldSettingsData USaveGameHelperLibrary::GetWorldSettingsMaximums()
 {
-	if (!MaxSettingsSet)
-	{
-		MaxSettingsSet = true;
+	FWorldSettingsData MaxSettings;
 
-		MaxSettings.WeatherIntensity = { 5,5 };
-		MaxSettings.WeatherFrequency = 5;
-		MaxSettings.EnemyDensity = 5;
-		MaxSettings.EnemyStrength = 3;
-		MaxSettings.EnemyViciousness = 3;
-		MaxSettings.LootStinginess = 5;
-		MaxSettings.RandomSpawnLocation = true;
-		MaxSettings.NoSavior = true;
-		MaxSettings.Alone = true;
+	MaxSettings.WeatherIntensity = { 5,5 };
+	MaxSettings.WeatherFrequency = 5;
+	MaxSettings.EnemyDensity = 5;
+	MaxSettings.EnemyStrength = 3;
+	MaxSettings.EnemyViciousness = 3;
+	MaxSettings.LootStinginess = 5;
+	MaxSettings.RandomSpawnLocation = true;
+	MaxSettings.NoSavior = true;
+	MaxSettings.Alone = true;
 
-		float EHDummy, WHDummy, FHDummy;
-		MaxSettings.TotalHostility = CalculateHostilityPercentage(MaxSettings, EHDummy, WHDummy, FHDummy);
-	}
+	float EHDummy, WHDummy, FHDummy;
+	MaxSettings.TotalHostility = CalculateHostilityPercentage(MaxSettings, EHDummy, WHDummy, FHDummy);
 
 	return MaxSettings;
 }

@@ -25,20 +25,8 @@ public:
 	UFUNCTION(BlueprintPure, meta = (WorldContext = "WorldContext"))
 		static class UMPHorsoGameInstance* RetrieveGameInstance(UObject* WorldContext);
 
-	//static class USkinAnimation* GetSkinAnim(UObject* WorldContext, TSubclassOf<class USkinAnimation> InstClass);
-	//static class UOffsetAnimation* GetOffsAnim(UObject* WorldContext, TSubclassOf<class UOffsetAnimation> InstClass);
-
 	UFUNCTION(BlueprintCallable)
 		static void WordWrap(const FString& inStr, FString& outStr, int OptimalLineLength = 64);
-
-	//UFUNCTION(BlueprintCallable)
-	//	static class AActor* SpawnActorProxy(class AActor* WorldContext, TSubclassOf<AActor> ToSpawn, const FTransform& SpawnLoc);
-	//
-	//UFUNCTION(BlueprintCallable)
-	//	static class UParticleSystemComponent* SpawnEmitterAtLocationProxy(class AActor* WorldContext, UParticleSystem* Template, FVector SpawnLoc, FRotator SpawnRot, bool AutoDestroy = true);
-	//
-	//UFUNCTION(BlueprintCallable)
-	//	static void GetAllActorsOfClassProxy(class AActor* WorldContext, TSubclassOf<class AActor> Class, TArray<class AActor*>& OutFound);
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Construct Quadratic Bezier Points"))
 		static void MakeQBezierPoints(const FVector& P0, const FVector& P1, const FVector& P2, int NumPoints, TArray<FVector>& OutPoints);
@@ -58,11 +46,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 		static void ExportToBitmap(const TArray<FColor>& pixels, FString fileName, int width, int height);
 
-	//UFUNCTION(BlueprintCallable)
-	//	static class UUserWidget* CreateWidgetProxy(class APlayerController* Owner, TSubclassOf<class UUserWidget> WidgClass);
+	UFUNCTION(BlueprintPure, meta = (AdvancedDisplay = 1))
+		static FLinearColor ColorFromHex(const FString& Hex, bool sRGB);
 
 	UFUNCTION(BlueprintPure)
-		static FLinearColor ColorFromHex(const FString& Hex);
+		static FString HexFromColor(FLinearColor Color, bool sRGB);
 
 	UFUNCTION(BlueprintPure)
 		static FString GetGameDirectory();
@@ -127,4 +115,76 @@ public:
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Calculate Global Water Surface At Point"))
 		static float CalcWaterSurface(FVector Point, float Scale, float Time);
 
+
+	// Preeeeeetty colooorrrrrssss
+
+	UFUNCTION(BlueprintPure)
+		static void MakeComplementaryColorScheme(FLinearColor Root, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals);
+
+	UFUNCTION(BlueprintPure)
+		static void MakeAnalogousColorScheme(FLinearColor Root, int NumColors, float AngleHSV, TArray<FLinearColor>& OutColors,
+			const TArray<FVector2D>& InSatVals);
+
+	UFUNCTION(BlueprintPure)
+		static void MakeTriadicColorScheme(FLinearColor Root, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals);
+
+	UFUNCTION(BlueprintPure)
+		static void MakeSplitComplementaryColorScheme(FLinearColor Root, float SplitAngleHSV, TArray<FLinearColor>& OutColors,
+			const TArray<FVector2D>& InSatVals);
+
+	UFUNCTION(BlueprintPure)
+		static void MakeTetradicColorScheme(FLinearColor Root, float SplitAngleHSV, TArray<FLinearColor>& OutColors,
+			const TArray<FVector2D>& InSatVals);
+
+	UFUNCTION(BlueprintPure)
+		static void MakeSquareColorScheme(FLinearColor Root, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals);
+
+	UFUNCTION(BlueprintPure)
+		static void MakeMonochromeColorScheme(FLinearColor Root, int NumColors, FVector2D IntervalRange, TArray<FLinearColor>& OutColors);
+
+	UFUNCTION(BlueprintPure, meta = (AdvancedDisplay = 4))
+		static void MakeRandomColorScheme(int NumColors, TArray<FLinearColor>& OutColors, const TArray<FVector2D>& InSatVals,
+			float AnalogousHueAngle, float SplitCompHueAngle, float TetradicHueAngle, FVector2D MonochromeValRange);
+
+	UFUNCTION(BlueprintPure)
+		static void MakeRandomHorseColorScheme(TArray<FLinearColor>& OutColors, int BodyColors = 1, int HairColors = 1, int EyeColors = 1);
+
+	UFUNCTION(BlueprintCallable)
+		static UTexture2D* MakeTextureForColorScheme(const TArray<FLinearColor>& Colors);
+
+
+	UFUNCTION(BlueprintPure, meta = (WorldContext = "WorldContextObject"))
+		static FVector2D ViewportToAbsolute(UObject* WorldContextObject,  FVector2D ViewportPosition);
+
+	UFUNCTION(BlueprintPure, meta = (WorldContext = "WorldContextObject"))
+		static FVector2D ViewportToLocal(UObject* WorldContextObject, const FGeometry& Geometry, FVector2D ViewportPosition);
+
+	UFUNCTION(BlueprintCallable)
+		static void ReleaseButton(class UButton* Button);
+
+	UFUNCTION(BlueprintCallable)
+		static void LeaveButton(class UButton* Button);
+
+	// Get color from screen position (NOTE: Returns a Linear RGB color!)
+	UFUNCTION(BlueprintPure)
+		static FLinearColor GetColorAtScreenPos(FVector2D ScreenPos);
+
+	// Get color from cursor position (NOTE: Returns a Linear RGB color!)
+	UFUNCTION(BlueprintPure)
+		static FLinearColor GetColorAtCursorPos();
+
+	// Set a function to run on slate's pre-tick. (NOTE: Expected signature is Func(float)!)
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Set Function to Slate Pre-Tick By Name"))
+		static void SetToPreTick(class UWidget* Widget, FString FuncName);
+
+	// Clear all functions on the specified object from slate's pre-tick.
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Clear All From Slate Pre-Tick On Object"))
+		static void ClearAllFromPreTick(class UWidget* Widget);
+
+	UFUNCTION(BlueprintCallable)
+		static void ForceCursorQuery();
+
+
+	UFUNCTION(BlueprintCallable)
+		static UTexture2D* MakeTextureFromRenderTarget(UTextureRenderTarget2D* Target, TArray<FLinearColor>& OutColors, bool InvertOpacity = true);
 };
