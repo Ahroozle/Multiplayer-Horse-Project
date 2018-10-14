@@ -11,7 +11,7 @@
 /*
 	TODO
 		Somehow, store ID information.
-		i.e. Have clients keep a lost of their ID on each server, and have servers keep a list of client IDs
+		i.e. Have clients keep a list of their ID on each server, and have servers keep a list of client IDs
 		to organize various information with (i.e. log-off positions and whatnot)
 
 		Probably also store overworld room data within worldsaves in the form of NPC-relevant states
@@ -41,6 +41,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (MultiLine = true))
 		FString Description;
+
+	/*
+		If player respawning fails to find the proper player room, this room will be used as the failsafe respawn point.
+
+		NOTE: This room should have a player respawn point in it!
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		FName DefaultRespawnRoomName;
 };
 
 /*
@@ -91,13 +99,52 @@ struct FCharColorSchemePart
 	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		FName SkinSetName;//TAssetSubclassOf<class USkeletalSpriteSkinSetBase> SkinSet;
+		FName SkinSetName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ValueMin = "0.0"))
 		int RegionSet;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<FLinearColor> Colors;
+};
+
+UENUM(BlueprintType)
+enum class EPlayerDifficulty : uint8
+{
+	/*
+		Default/softcore difficulty (White name underline)
+
+		player only drops half their cash when downed.
+	*/
+	Default,
+
+	/*
+		Midcore difficulty (Cyan name underline)
+
+		player loses all items (including cash) when downed.
+	*/
+	Midcore,
+
+	/*
+		Semi-hardcore difficulty (Purple name underline)
+
+		player loses all items (including cash) when downed,
+		and will be dead permanently if they aren't within
+		7 rooms of a nurse. Upon exiting the world, the
+		dead character's save is deleted.
+	*/
+	SemiHardcore	UMETA(DisplayName = "Semi-Hardcore"),
+
+	/*
+		Hardcore difficulty (Red name underline)
+
+		player loses all items (including cash) when downed,
+		and are dead permanently if they aren't within the
+		same room as a nurse or town containing a nurse.
+		Upon exiting the world, the dead character's save
+		is deleted.
+	*/
+	Hardcore
 };
 
 /*
@@ -121,11 +168,18 @@ public:
 		ERaceType Race;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
-		TMap<FName, /*FLinearColor*/FCharColorSchemePart> ColorScheme;
+		TMap<FName, FCharColorSchemePart> ColorScheme;
 
-	// Container of names of worlds this character has been on.
+	// Container of names of worlds this character has been on. (Applies to local worlds only)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
 		TSet<FName> WorldsVisited;
+
+	/*
+		Map of Server IDs to the respective PlayerID pertaining to this character
+		on them. Used for various identification and persistence/save operations.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+		TMap<FString, FString> ServerIDsToPlayerIDs;
 
 	/*
 		The name of the difficulty the player is at!
@@ -148,7 +202,7 @@ public:
 		and picked up.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
-		FName Difficulty = "Default";
+		EPlayerDifficulty Difficulty = EPlayerDifficulty::Default;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
 		float NativeStamina = 1.0f;
@@ -417,6 +471,26 @@ struct FWorldSettingsData
 
 };
 
+USTRUCT(BlueprintType)
+struct FWorldboundPlayerData
+{
+	GENERATED_USTRUCT_BODY();
+
+	/*
+		Room players will respawn into when logging in.
+
+		This will always be on the overworld layer; While
+		it is easily possible for the player to respawn in
+		an instanced layer room, these spawn points are not
+		saved out because instanced layers are transient.
+		this room will also never be in an instance layer
+		prefab either, as they are inaccessible in normal
+		gameplay.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FName RespawnRoomName;
+};
+
 /*
 	SaveGame class for worlds
 
@@ -437,8 +511,24 @@ public:
 		FString WorldName;
 
 	// Has this world ever been used as a multiplayer world?
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
+	//	bool HasEverBeenHosted = false;
+
+	// The identification string of this world as a server. Only valid if the world has ever been hosted.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
-		bool HasEverBeenHosted = false;
+		FString ServerID;
+
+	/*
+		Map storing both Player IDs (as strings) and the corresponding world-bound player
+		data pertaining to each ID. Is used, of course, for identification and persistence
+		in online worlds.
+
+		NOTE: This is also used during single-player as to avoid loss of data when being used
+		as a multiplayer world after any amount of single-player use. In this use case, it
+		simply has the host's player ID in it, and no others.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
+		TMap<FString, FWorldboundPlayerData> PlayerIDsAndData;
 
 	UPROPERTY(BlueprintReadWrite, Category = "World Save")
 		FWorldSettingsData WorldSettings;
@@ -507,6 +597,44 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		static void CalculateAndApplyHostility(UPARAM(Ref) FWorldSettingsData& WorldData);
+
+
+	UFUNCTION(BlueprintPure)
+		static FString GenerateServerID(FString WorldName);
+
+	UFUNCTION(BlueprintPure)
+		static FString GeneratePlayerID(FString PlayerName, int PlayerNumber);
+
+	UFUNCTION(BlueprintCallable)
+		static void RetrieveAllWorldTypes(TArray<FName>& FoundNames)
+	{
+		for (TObjectIterator<UClass> iter; iter; ++iter)
+		{
+			if (iter->IsChildOf(UMPHorsoWorldType::StaticClass()) && *iter != UMPHorsoWorldType::StaticClass())
+			{
+				FString FoundName = iter->GetName();
+
+				if(!FoundName.StartsWith("SKEL_") && !FoundName.StartsWith("REINST_"))
+					FoundNames.Add(iter->GetFName());
+			}
+		}
+	}
+
+	UFUNCTION(BlueprintCallable)
+		static TSubclassOf<UMPHorsoWorldType> LoadWorldTypeByName(FName ClassName)
+	{
+		if (!ClassName.IsNone())
+		{
+			UClass* WorldTypeClass = FindObject<UClass>(ANY_PACKAGE, *ClassName.ToString());
+			if (nullptr == WorldTypeClass)
+				WorldTypeClass = LoadObject<UClass>(NULL, *ClassName.ToString());
+
+			if (nullptr != WorldTypeClass && WorldTypeClass->IsChildOf(UMPHorsoWorldType::StaticClass()))
+				return WorldTypeClass;
+		}
+
+		return nullptr;
+	}
 
 private:
 

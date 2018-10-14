@@ -187,4 +187,11 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		static UTexture2D* MakeTextureFromRenderTarget(UTextureRenderTarget2D* Target, TArray<FLinearColor>& OutColors, bool InvertOpacity = true);
+
+
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Vigenere-ish Cipher Encrypt"))
+		FString ViggishCipherEncrypt(FString Base, FString Key, FString Alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Vigenere-ish Cipher Decrypt"))
+		FString ViggishCipherDecrypt(FString Base, FString Key, FString Alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
 };

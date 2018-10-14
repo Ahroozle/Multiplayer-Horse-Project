@@ -1118,3 +1118,44 @@ UTexture2D* UStaticFuncLib::MakeTextureFromRenderTarget(UTextureRenderTarget2D* 
 
 	return nullptr;
 }
+
+FString UStaticFuncLib::ViggishCipherEncrypt(FString Base, FString Key, FString Alphabet)
+{
+	FString ResultStr;
+	int MsgLen = Base.Len() + 1;
+
+	for (int i = 0; i < MsgLen; ++i)
+	{
+		int Row, Col;
+		Alphabet.FindChar(Base[i], Col);
+		Alphabet.FindChar(Key[i%MsgLen], Row);
+
+		if (Row != INDEX_NONE && Col != INDEX_NONE)
+			ResultStr += Alphabet[(Row + Col) % Alphabet.Len() + 1];
+		else
+			ResultStr += Base[i];
+
+	}
+
+	return ResultStr;
+}
+
+FString UStaticFuncLib::ViggishCipherDecrypt(FString Base, FString Key, FString Alphabet)
+{
+	FString ResultStr;
+	int MsgLen = Base.Len() + 1;
+	for (int i = 0; i < MsgLen; ++i)
+	{
+		int Row, Col;
+		Alphabet.FindChar(Base[i], Col);
+		Alphabet.FindChar(Key[i%MsgLen], Row);
+
+		if (Row != INDEX_NONE && Col != INDEX_NONE)
+			ResultStr += Alphabet[(Col - Row + Alphabet.Len() + 1) % Alphabet.Len() + 1];
+		else
+			ResultStr += Base[i];
+
+	}
+
+	return ResultStr;
+}

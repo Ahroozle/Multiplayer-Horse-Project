@@ -32,13 +32,13 @@ void UMPHorsoGameInstance::Init()
 	
 	TArray<UClass*> CurrResults;
 	FindContentOfClass(AssetRegistry, FoundBlueprintAssets, UMPHorsoWorldType::StaticClass(), CurrResults);
-	WorldTypes.Empty();
-	for (UClass* curr : CurrResults)
-	{
-		TSubclassOf<UMPHorsoWorldType> currCasted(curr);
-		if (nullptr != currCasted)
-			WorldTypes.Add(currCasted.GetDefaultObject()->WorldTypeName, currCasted);
-	}
+	//WorldTypes.Empty();
+	//for (UClass* curr : CurrResults)
+	//{
+	//	TSubclassOf<UMPHorsoWorldType> currCasted(curr);
+	//	if (nullptr != currCasted)
+	//		WorldTypes.Add(currCasted.GetDefaultObject()->WorldTypeName, currCasted);
+	//}
 
 
 }

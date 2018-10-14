@@ -170,6 +170,10 @@ void AMPHorsoCameraGuideCluster::OnConstruction(const FTransform & Transform)
 			DrawnLineCopies.Add(WorldPersistentBatchedLines[CopyStart]);
 	}
 
+	TInlineComponentArray<UShapeComponent*> Shapes(this);
+	for (UShapeComponent* currShape : Shapes)
+		currShape->ShapeColor = FColor::Blue;
+
 #endif
 }
 
@@ -492,6 +496,14 @@ void AMPHorsoCameraConformer::OnConstruction(const FTransform& Transform)
 						  ConformComponentName.ToString() +
 						  "\'!",
 						  true);
+
+#if WITH_EDITOR
+
+	TInlineComponentArray<UShapeComponent*> Shapes(this);
+	for (UShapeComponent* currShape : Shapes)
+		currShape->ShapeColor = FColor::Blue;
+
+#endif
 
 }
 

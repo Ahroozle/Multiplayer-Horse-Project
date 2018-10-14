@@ -33,7 +33,8 @@ public:
 			if (nullptr == SkinClass)
 				SkinClass = LoadObject<UClass>(NULL, *ClassName.ToString());
 
-			return SkinClass;
+			if (nullptr != SkinClass && SkinClass->IsChildOf(USkeletalSpriteSkinSetBase::StaticClass()))
+				return SkinClass;
 		}
 
 		return nullptr;

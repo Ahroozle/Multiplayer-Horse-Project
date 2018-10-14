@@ -74,13 +74,6 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 		TArray<FString> DetectedMods;
 
-	/*
-		Names of World Types, paired with
-		the string name of the world to load.
-	*/
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		TMap<FName, TSubclassOf<class UMPHorsoWorldType>> WorldTypes;//TMap<FName, FString> WorldTypes;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		TArray<FString> RuntimeErrorList;
 

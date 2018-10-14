@@ -11,6 +11,9 @@
 
 #include "StaticFuncLib.h"
 
+#include "Networking.h"
+#include "AES.h"
+
 #include "Kismet/GameplayStatics.h"
 
 
@@ -336,4 +339,26 @@ void USaveGameHelperLibrary::CalculateAndApplyHostility(UPARAM(Ref) FWorldSettin
 {
 	float EHDummy, WHDummy, FHDummy;
 	WorldData.TotalHostility = CalculateHostilityPercentage(WorldData, EHDummy, WHDummy, FHDummy);
+}
+
+FString USaveGameHelperLibrary::GenerateServerID(FString WorldName)
+{
+	bool dummy;
+	auto AddrPtr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLocalHostAddr(*GLog, dummy);
+	FString AddrStr = AddrPtr->ToString(false);
+
+	int Size = AddrStr.Len();
+	Size = Size + (FAES::AESBlockSize - (Size % FAES::AESBlockSize));
+
+	TArray<uint8> buffer;
+	buffer.Reserve(Size);
+	FString::ToBlob(AddrStr, buffer.GetData(), Size);
+	FAES::EncryptData(buffer.GetData(), Size);
+
+	return FString::FromHexBlob(buffer.GetData(), Size) + FString::Printf(TEXT("%llu"), GetTypeHash(WorldName));
+}
+
+FString USaveGameHelperLibrary::GeneratePlayerID(FString PlayerName, int PlayerNumber)
+{
+	return FString::Printf(TEXT("%llu"), GetTypeHash(PlayerName)) + FString::FromInt(PlayerNumber);
 }
