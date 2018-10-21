@@ -29,5 +29,5 @@ void APlayerRespawnPointBase::Tick(float DeltaTime)
 
 void APlayerRespawnPointBase::HandleRespawn_Implementation(APawn* Player)
 {
-	Player->SetActorLocation(GetActorLocation());
+	Player->SetActorLocation(GetActorLocation(), false, nullptr, ETeleportType::TeleportPhysics);
 }

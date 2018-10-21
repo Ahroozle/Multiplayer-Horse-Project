@@ -29,17 +29,15 @@ void FStreamedRoom::ClearRoom()
 }
 
 
-void FStreamedRoomLayer::TraverseFrom(AActor* Player, FName RoomName)
+void FStreamedRoomLayer::TryUnloadRooms(FName RootRoomName)
 {
-	FStreamedRoom* RootRoom = RoomsInLayer.Find(RoomName);
+	FStreamedRoom* RootRoom = RoomsInLayer.Find(RootRoomName);
 
 	if (nullptr != RootRoom)
 	{
-		RootRoom->PlayersPresent.Remove(Player);
+		// Unload this room, its neighbors, and any rooms visible from this one, unless they contain a player or are adjacent to one.
 
-		// Unload this room and all its neighbors, unless they contain a player or are adjacent to one.
-
-		if (CanUnloadRoom(RoomName))
+		if (CanUnloadRoom(RootRoomName))
 			RootRoom->UnloadRoom();
 
 		for (FStreamedRoomAddress &currNeigh : RootRoom->NeighboringRooms)
@@ -48,33 +46,41 @@ void FStreamedRoomLayer::TraverseFrom(AActor* Player, FName RoomName)
 				RoomsInLayer.Find(currNeigh.RoomName)->UnloadRoom();
 		}
 
-		for (FStreamedRoomAddress &currVis : RootRoom->NeighboringRooms)
+		for (FStreamedRoomAddress &currVis : RootRoom->VisibleRooms)
 		{
 			if (currVis.AddressType == EStreamedRoomAddressType::NormalAddress && CanUnloadRoom(currVis.RoomName))
 				RoomsInLayer.Find(currVis.RoomName)->UnloadRoom();
 		}
 	}
-
-	PlayersPresent.Remove(Player);
 }
 
-void FStreamedRoomLayer::TraverseTo(AActor* Player, FName RoomName)
+void FStreamedRoomLayer::TraverseFrom(FString PlayerID, FName RoomName)
 {
 	FStreamedRoom* RootRoom = RoomsInLayer.Find(RoomName);
 
 	if (nullptr != RootRoom)
+		RootRoom->PlayersPresent.Remove(PlayerID);
+
+	PlayersPresent.Remove(PlayerID);
+}
+
+void FStreamedRoomLayer::TryLoadRooms(FName RootRoomName)
+{
+	FStreamedRoom* RootRoom = RoomsInLayer.Find(RootRoomName);
+
+	if (nullptr != RootRoom)
 	{
-		RootRoom->PlayersPresent.Add(Player);
+		// Load this room, its neighbors, and any rooms that are visible from this one.
 
 		RootRoom->LoadRoom();
 
 		TArray<FStreamedRoom*> Neighbors;
-		GetRoomNeighbors(RoomName, Neighbors);
+		GetRoomNeighbors(RootRoomName, Neighbors);
 
 		for (FStreamedRoom* currNeigh : Neighbors)
 			currNeigh->LoadRoom();
 
-		for (FStreamedRoomAddress &currVisAddr : RootRoom->NeighboringRooms)
+		for (FStreamedRoomAddress &currVisAddr : RootRoom->VisibleRooms)
 		{
 			FStreamedRoom* currVis = RoomsInLayer.Find(currVisAddr.RoomName);
 
@@ -82,8 +88,20 @@ void FStreamedRoomLayer::TraverseTo(AActor* Player, FName RoomName)
 				currVis->LoadRoom();
 		}
 	}
+}
 
-	PlayersPresent.Add(Player);
+void FStreamedRoomLayer::TraverseTo(FString PlayerID, FName RoomName)
+{
+	FStreamedRoom* RootRoom = RoomsInLayer.Find(RoomName);
+
+	if (nullptr != RootRoom)
+	{
+		RootRoom->PlayersPresent.Add(PlayerID);
+
+		TryLoadRooms(RoomName);
+	}
+
+	PlayersPresent.Add(PlayerID);
 }
 
 void FStreamedRoomLayer::GetRoomNeighbors(FName RoomName, TArray<FStreamedRoom*>& NeighboringRooms)
@@ -144,7 +162,7 @@ void FStreamedRoomLayer::CloneLayer(FStreamedRoomLayer& Clone, FName NewLayerNam
 			// Hack to circumvent UObject::IsNameStableForNetworking()
 			RoomClone.RoomRef->SetFlags(RF_WasLoaded);
 
-			RoomClone.RoomRef->LevelTransform.SetLocation(FVector::UpVector * NewLayerOffset);
+			RoomClone.RoomRef->LevelTransform.AddToTranslation((FVector::UpVector * NewLayerOffset));
 		}
 		else
 			UStaticFuncLib::Print("FStreamedRoomLayer::CloneLayer: Couldn't find a reference to room \'" +
@@ -171,10 +189,21 @@ void ALoadingZone::BeginPlay()
 {
 	Super::BeginPlay();
 
-	ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(this);
+	if (UKismetSystemLibrary::IsServer(this))
+	{
+		ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(this);
 
-	if (nullptr != StreamManager)
-		StreamManager->RequestNewLayer(this);
+		if (nullptr != StreamManager && DestinationRoom.AddressType == EStreamedRoomAddressType::InstanceEntrance)
+		{
+			DestPrefabLayer = DestinationRoom.LayerName;
+			StreamManager->RequestNewLayer(this);
+		}
+
+		TSet<AActor*> InitialOverlappers;
+		GetOverlappingActors(InitialOverlappers);
+		for (AActor* curr : InitialOverlappers)
+			NotifyActorBeginOverlap(curr);
+	}
 
 }
 
@@ -187,23 +216,26 @@ void ALoadingZone::Tick(float DeltaTime)
 
 void ALoadingZone::NotifyActorBeginOverlap(AActor* OtherActor)
 {
-	APawn* AsPawn = Cast<APawn>(OtherActor);
-
-	if (nullptr != AsPawn)
+	if (UKismetSystemLibrary::IsServer(this))
 	{
-		ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(this);
+		APawn* AsPawn = Cast<APawn>(OtherActor);
 
-		if (nullptr != StreamManager)
+		if (nullptr != AsPawn)
 		{
-			// containers used to guarantee that ops only happen once per player, per traversal.
+			ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(this);
 
-			if (!ArrivingPlayers.Contains(AsPawn))
-				HandleArriving(AsPawn);
-			else if (!DepartingPlayers.Contains(AsPawn))
-				HandleDeparting({ AsPawn });
+			if (nullptr != StreamManager)
+			{
+				// containers used to guarantee that ops only happen once per player, per traversal.
+
+				if (ArrivingPlayers.Contains(AsPawn))
+					HandleArriving(AsPawn);
+				else if (!DepartingPlayers.Contains(AsPawn))
+					HandleDeparting({ AsPawn });
+			}
+			else
+				UStaticFuncLib::Print("ALoadingZone::NotifyActorBeginOverlap: Couldn't retrieve the Room Streaming Manager!", true);
 		}
-		else
-			UStaticFuncLib::Print("ALoadingZone::NotifyActorBeginOverlap: Couldn't retrieve the Room Streaming Manager!", true);
 	}
 }
 
@@ -220,7 +252,7 @@ FVector ALoadingZone::GetPlayerDirection_Implementation(APawn* Player, bool Leav
 void ALoadingZone::HandleArriving(APawn* Target)
 {
 	OnRoomEntered.Broadcast(this, Target);
-	DoArrivingAnimation(Target);
+	BroadcastArrivingAnimation(Target);
 }
 
 void ALoadingZone::HandleDeparting(const TArray<APawn*>& Targets)
@@ -242,43 +274,46 @@ void ALoadingZone::HandleDeparting(const TArray<APawn*>& Targets)
 
 void ALoadingZone::FinishDepartingAnimation()
 {
-	ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(this);
-
-	if (nullptr != StreamManager)
+	if(UKismetSystemLibrary::IsServer(this))
 	{
-		FStreamedRoomTreeNode* RetrievedLayer = StreamManager->LayerNodes.Find(CurrentTargetAddress.LayerName);
+		ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(this);
 
-		if (nullptr != RetrievedLayer)
+		if (nullptr != StreamManager)
 		{
-			FStreamedRoom* RetrievedRoom = RetrievedLayer->Layer.RoomsInLayer.Find(CurrentTargetAddress.RoomName);
+			FStreamedRoomTreeNode* RetrievedLayer = StreamManager->LayerNodes.Find(CurrentTargetAddress.LayerName);
 
-			if (nullptr != RetrievedRoom)
+			if (nullptr != RetrievedLayer)
 			{
-				CurrentRoomRef = RetrievedRoom->RoomRef;
+				FStreamedRoom* RetrievedRoom = RetrievedLayer->Layer.RoomsInLayer.Find(CurrentTargetAddress.RoomName);
 
-				if (nullptr != CurrentRoomRef)
+				if (nullptr != RetrievedRoom)
 				{
-					if (CurrentRoomRef->IsLevelLoaded())
-						OnFinallyDepart();
+					CurrentRoomRef = RetrievedRoom->RoomRef;
+
+					if (nullptr != CurrentRoomRef)
+					{
+						if (CurrentRoomRef->IsLevelLoaded())
+							OnFinallyDepart();
+						else
+							CurrentRoomRef->OnLevelLoaded.AddDynamic(this, &ALoadingZone::OnFinallyDepart);
+					}
 					else
-						CurrentRoomRef->OnLevelLoaded.AddDynamic(this, &ALoadingZone::OnFinallyDepart);
+						UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Successfully retrieved room at address {\'" +
+											  CurrentTargetAddress.LayerName.ToString() + "\', \'" + CurrentTargetAddress.RoomName.ToString() +
+											  "\'}, but the room reference stored within was invalid!", true);
 				}
 				else
-					UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Successfully retrieved room at address {\'" +
-										  CurrentTargetAddress.LayerName.ToString() + "\', \'" + CurrentTargetAddress.RoomName.ToString() +
-										  "\'}, but the room reference stored within was invalid!", true);
+					UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Couldn't retrieve room \'" +
+										  CurrentTargetAddress.RoomName.ToString() + "\' in layer \'" +
+										  CurrentTargetAddress.LayerName.ToString() + "\'!", true);
 			}
 			else
-				UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Couldn't retrieve room \'" +
-									  CurrentTargetAddress.RoomName.ToString() + "\' in layer \'" +
+				UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Couldn't retrieve layer \'" +
 									  CurrentTargetAddress.LayerName.ToString() + "\'!", true);
 		}
 		else
-			UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Couldn't retrieve layer \'" +
-								  CurrentTargetAddress.LayerName.ToString() + "\'!", true);
+			UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Couldn't retrieve the Room Streaming Manager!", true);
 	}
-	else
-		UStaticFuncLib::Print("ALoadingZone::FinishDepartingAnimation: Couldn't retrieve the Room Streaming Manager!", true);
 }
 
 void ALoadingZone::OnFinallyDepart()
@@ -294,8 +329,40 @@ void ALoadingZone::OnFinallyDepart()
 		{
 			AsLZ->ArrivingPlayers.Append(DepartingPlayers);
 
+			FVector PlaceLoc;
+			
+			// Stupid hack because unreal won't just let me check SceneComponent::bWorldToComponentUpdated
+			if (AsLZ->GetActorTransform().Equals(FTransform::Identity))
+			{
+				bool PlaceSet = false;
+				ARoomStreamingManager* StreamManager = URoomStreamingFuncLib::GetRoomStreamingManager(this);
+
+				if (nullptr != StreamManager)
+				{
+					FStreamedRoomAddress Addr;
+					StreamManager->GetRoomAddress(AsLZ, Addr);
+
+					FStreamedRoomTreeNode* FoundLayer = StreamManager->LayerNodes.Find(Addr.LayerName);
+					if (nullptr != FoundLayer)
+					{
+						FStreamedRoom* FoundRoom = FoundLayer->Layer.RoomsInLayer.Find(Addr.RoomName);
+
+						if (nullptr != FoundRoom && nullptr != FoundRoom->RoomRef)
+						{
+							PlaceLoc = FoundRoom->RoomRef->LevelTransform.TransformPosition(AsLZ->RootComponent->RelativeLocation);
+							PlaceSet = true;
+						}
+					}
+				}
+
+				if (!PlaceSet)
+					PlaceLoc = AsLZ->RootComponent->RelativeLocation;
+			}
+			else
+				PlaceLoc = AsLZ->GetActorLocation();
+
 			for (APawn* currDeparting : DepartingPlayers)
-				currDeparting->SetActorLocation(AsLZ->GetActorLocation() + GetPlayerOffset(currDeparting));
+				currDeparting->SetActorLocation(PlaceLoc + GetPlayerOffset(currDeparting), false, nullptr, ETeleportType::TeleportPhysics);
 
 			BackupRA = nullptr;
 			break;
@@ -314,9 +381,9 @@ void ALoadingZone::OnFinallyDepart()
 							  "\'}! Spawning players at the room's RoomActor instead.", true);
 
 		for (APawn* currDeparting : DepartingPlayers)
-			currDeparting->SetActorLocation(BackupRA->GetActorLocation() + GetPlayerOffset(currDeparting));
+			currDeparting->SetActorLocation(BackupRA->GetActorLocation() + GetPlayerOffset(currDeparting), false, nullptr, ETeleportType::TeleportPhysics);
 
-		DoFixingArriveAnimation(DepartingArr);
+		BroadcastFixingArriveAnimation(DepartingArr);
 	}
 
 	OnRoomExited.Broadcast(this, DepartingArr);
@@ -429,9 +496,9 @@ void ARoomActor::BeginPlay()
 		if (nullptr != FoundAddr)
 		{
 			bool ShouldCull = true;
-			for (auto &currPair : StreamManager->PlayerAddresses)
+			for (auto &currPair : StreamManager->PlayerIDs)
 			{
-				if (currPair.Value == *FoundAddr)
+				if (StreamManager->PlayerAddresses.FindRef(currPair.Value) == *FoundAddr)
 				{
 					APawn* AsPawn = Cast<APawn>(currPair.Key);
 					APawn* CastedOwner = Cast<APawn>(currPair.Key->GetOwner());
@@ -500,6 +567,7 @@ void ARoomStreamingManager::OnConstruction(const FTransform& Transform)
 
 	if (UpdateOverworldData)
 	{
+		UpdateOverworldData = false;
 		// TODO? maybe draw the structure of the world with debug lines and stuff?
 
 		LayerNodes.Empty();
@@ -583,13 +651,17 @@ void ARoomStreamingManager::Tick(float DeltaTime)
 
 }
 
-void ARoomStreamingManager::HandleEnteringPlayer(APawn* EnteringPlayer, const FString& PlayerID)
+void ARoomStreamingManager::HandleEnteringPlayer(APawn* EnteringPlayer, const FString& PlayerName, const FString& PlayerID)
 {
 	// TODO
 	//	Get the player's according saved data based on their info
 	//		If there is no data that means they're new, do the newbie sequence thingy.
 	//		Otherwise just set them up, load proper rooms, and place them in the right place.
 	//			(This might actually go unfinished for a while since nurses aren't a thing yet).
+
+	FString FocusPlayerID = PlayerID;
+	FStreamedRoomAddress SpawnAddr;
+	bool SpawnDataInitialized = false;
 
 	UMPHorsoGameInstance* gameInst = UStaticFuncLib::RetrieveGameInstance(this);
 
@@ -599,60 +671,86 @@ void ARoomStreamingManager::HandleEnteringPlayer(APawn* EnteringPlayer, const FS
 
 		if (nullptr != WorldSave)
 		{
-			FWorldboundPlayerData* FoundData = WorldSave->PlayerIDsAndData.Find(PlayerID);
+			bool IsNewPlayer = true;
 
-			FStreamedRoomAddress SpawnAddr;
-			if (nullptr != FoundData)
+			if (PlayerID.Len() > 0)
 			{
-				SpawnAddr = { FName(), FoundData->RespawnRoomName, EStreamedRoomAddressType::NormalAddress };
-			}
-			else
-			{
-				TSubclassOf<UMPHorsoWorldType> RetrievedWorldType =
-					USaveGameHelperLibrary::LoadWorldTypeByName(WorldSave->WorldSettings.WorldType);
-				if (nullptr != RetrievedWorldType)
+				FWorldboundPlayerData* RetrievedData = WorldSave->PlayerIDsAndData.Find(PlayerID);
+
+				if (nullptr != RetrievedData)
 				{
-					SpawnAddr =
-						{ FName(), RetrievedWorldType.GetDefaultObject()->DefaultRespawnRoomName, EStreamedRoomAddressType::NormalAddress };
-				}
-			}
+					SpawnAddr = { FName(), RetrievedData->RespawnRoomName, EStreamedRoomAddressType::NormalAddress };
 
-			FStreamedRoomTreeNode* FoundLayer = LayerNodes.Find(SpawnAddr.LayerName);
-
-			if (nullptr != FoundLayer)
-			{
-				FStreamedRoom* FoundRoom = FoundLayer->Layer.RoomsInLayer.Find(SpawnAddr.RoomName);
-
-				if (nullptr != FoundRoom)
-				{
-					if (nullptr != FoundRoom->RoomRef)
-					{
-						FoundLayer->Layer.TraverseTo(EnteringPlayer, SpawnAddr.RoomName);
-						PlayerAddresses.Add(EnteringPlayer, SpawnAddr);
-
-						if (FoundRoom->RoomRef->IsLevelLoaded())
-							PlaceEnteringPlayer(EnteringPlayer, FoundRoom->RoomRef);
-						else
-						{
-							WaitingDuringEntry.Add(FoundRoom->RoomRef, EnteringPlayer);
-							FoundRoom->RoomRef->OnLevelLoaded.AddDynamic(this, &ARoomStreamingManager::FinishEnterPlayer);
-						}
-					}
-					else
-						UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Found room \'" +
-											  SpawnAddr.RoomName.ToString() + "\' in the overworld, but its internal reference was "
-											  "invalid!", true);
+					IsNewPlayer = false;
 				}
 				else
-					UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Couldn't find a room named \'" +
-										  SpawnAddr.RoomName.ToString() + "\' in the overworld!", true);
+					UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Could not find save data for PlayerID \'" +
+										  PlayerID + "\' as requested by player \'" + PlayerName + "\'. They will be treated as a new "
+										  "player for now.", true);
 			}
-			else
-				UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Was unable to retrieve the overworld layer!", true);
+
+			if (IsNewPlayer)
+			{
+				FocusPlayerID = USaveGameHelperLibrary::GeneratePlayerID(PlayerName, WorldSave->PlayerIDsAndData.Num());
+
+				FWorldboundPlayerData& NewPlayerData = WorldSave->PlayerIDsAndData.Add(FocusPlayerID);
+
+				TSubclassOf<UMPHorsoWorldType> RetrievedWorldType =
+					USaveGameHelperLibrary::LoadWorldTypeByName(WorldSave->WorldSettings.WorldType);
+
+				NewPlayerData.RespawnRoomName = RetrievedWorldType.GetDefaultObject()->DefaultRespawnRoomName;
+
+				if (nullptr != RetrievedWorldType)
+					SpawnAddr = { FName(), NewPlayerData.RespawnRoomName, EStreamedRoomAddressType::NormalAddress };
+			}
+
+			SpawnDataInitialized = true;
 		}
 	}
 	else
 		UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Couldn't retrieve the game instance!", true);
+
+	// this code is only run in debug (or other strange) situations where there isn't a world save or access to a game instance.
+	if(!SpawnDataInitialized)
+	{
+		// Construct and assign a temporary PlayerID. No saving will be done for obvious reasons.
+		FocusPlayerID = USaveGameHelperLibrary::GeneratePlayerID(PlayerName, PlayerIDs.Num());
+		SpawnAddr = { FName(), DebugSpawnRoom };
+	}
+
+
+	FStreamedRoomTreeNode* FoundLayer = LayerNodes.Find(SpawnAddr.LayerName);
+
+	if (nullptr != FoundLayer)
+	{
+		FStreamedRoom* FoundRoom = FoundLayer->Layer.RoomsInLayer.Find(SpawnAddr.RoomName);
+
+		if (nullptr != FoundRoom)
+		{
+			if (nullptr != FoundRoom->RoomRef)
+			{
+				BeginTraverseTo(FocusPlayerID, SpawnAddr);
+				PlayerIDs.Add(EnteringPlayer, FocusPlayerID);
+
+				if (FoundRoom->RoomRef->IsLevelLoaded())
+					PlaceEnteringPlayer(EnteringPlayer, FoundRoom->RoomRef);
+				else
+				{
+					WaitingDuringEntry.Add(FoundRoom->RoomRef, EnteringPlayer);
+					FoundRoom->RoomRef->OnLevelLoaded.AddDynamic(this, &ARoomStreamingManager::FinishEnterPlayer);
+				}
+			}
+			else
+				UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Found room \'" +
+					SpawnAddr.RoomName.ToString() + "\' in the overworld, but its internal reference was "
+					"invalid!", true);
+		}
+		else
+			UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Couldn't find a room named \'" +
+				SpawnAddr.RoomName.ToString() + "\' in the overworld!", true);
+	}
+	else
+		UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Was unable to retrieve the overworld layer!", true);
 }
 
 void ARoomStreamingManager::FinishEnterPlayer()
@@ -675,6 +773,44 @@ void ARoomStreamingManager::FinishEnterPlayer()
 	
 	for (ULevelStreaming* currDone : Finished)
 		WaitingDuringEntry.Remove(currDone);
+}
+
+void ARoomStreamingManager::PlopEnteringPlayer(APawn* EnteringPlayer, FStreamedRoomAddress Addr)
+{
+	FStreamedRoomTreeNode* FoundLayer = LayerNodes.Find(Addr.LayerName);
+
+	if (nullptr != FoundLayer)
+	{
+		FStreamedRoom* FoundRoom = FoundLayer->Layer.RoomsInLayer.Find(Addr.RoomName);
+
+		if (nullptr != FoundRoom)
+		{
+			if (nullptr != FoundRoom->RoomRef)
+			{
+				FString& NewPlayerID =
+					PlayerIDs.Add(EnteringPlayer, USaveGameHelperLibrary::GeneratePlayerID(EnteringPlayer->GetName(), PlayerIDs.Num()));
+
+				BeginTraverseTo(NewPlayerID, Addr);
+
+				if (FoundRoom->RoomRef->IsLevelLoaded())
+					PlaceEnteringPlayer(EnteringPlayer, FoundRoom->RoomRef);
+				else
+				{
+					WaitingDuringEntry.Add(FoundRoom->RoomRef, EnteringPlayer);
+					FoundRoom->RoomRef->OnLevelLoaded.AddDynamic(this, &ARoomStreamingManager::FinishEnterPlayer);
+				}
+			}
+			else
+				UStaticFuncLib::Print("ARoomStreamingManager::PlopEnteringPlayer: Found room \'" +
+					Addr.RoomName.ToString() + "\' in the overworld, but its internal reference was "
+					"invalid!", true);
+		}
+		else
+			UStaticFuncLib::Print("ARoomStreamingManager::PlopEnteringPlayer: Couldn't find a room named \'" +
+				Addr.RoomName.ToString() + "\' in the overworld!", true);
+	}
+	else
+		UStaticFuncLib::Print("ARoomStreamingManager::PlopEnteringPlayer: Was unable to retrieve the overworld layer!", true);
 }
 
 void ARoomStreamingManager::PlaceEnteringPlayer(APawn* EnteringPlayer, ULevelStreaming* Room)
@@ -701,7 +837,7 @@ void ARoomStreamingManager::PlaceEnteringPlayer(APawn* EnteringPlayer, ULevelStr
 			UStaticFuncLib::Print("ARoomStreamingManager::PlaceEnteringPlayer: No valid respawn point actor was found within room \'" +
 				BackupRA->RoomName.ToString() + "\' within the overworld! Spawning player at the room's RoomActor instead.", true);
 
-			EnteringPlayer->SetActorLocation(BackupRA->GetActorLocation());
+			EnteringPlayer->SetActorLocation(BackupRA->GetActorLocation(), false, nullptr, ETeleportType::TeleportPhysics);
 		}
 	}
 }
@@ -718,22 +854,27 @@ void ARoomStreamingManager::HandleExitingPlayer(APawn* LeavingPlayer)
 	//		a nurse and you just snap back up in the place you were?)
 
 
-	FStreamedRoomAddress* PlayerAddr = PlayerAddresses.Find(LeavingPlayer);
+	FString* LeavingPlayerID = PlayerIDs.Find(LeavingPlayer);
 
-	if (nullptr != PlayerAddr)
+	if (nullptr != LeavingPlayerID)
 	{
-		FStreamedRoomTreeNode* FoundLayer = LayerNodes.Find(PlayerAddr->LayerName);
+		FStreamedRoomAddress* PlayerAddr = PlayerAddresses.Find(*LeavingPlayerID);
 
-		if (nullptr != FoundLayer)
+		if (nullptr != PlayerAddr)
 		{
-			if (FoundLayer->Layer.RoomsInLayer.Contains(PlayerAddr->RoomName))
+			FStreamedRoomTreeNode* FoundLayer = LayerNodes.Find(PlayerAddr->LayerName);
+
+			if (nullptr != FoundLayer)
 			{
-				FoundLayer->Layer.TraverseFrom(LeavingPlayer, PlayerAddr->RoomName);
-				PostTraverseDirect(*PlayerAddr);
+				if (FoundLayer->Layer.RoomsInLayer.Contains(PlayerAddr->RoomName))
+				{
+					BeginTraverseFrom(*LeavingPlayerID, *PlayerAddr, true);
+					PostTraverseDirect(*PlayerAddr);
+				}
 			}
 		}
 
-		PlayerAddresses.Remove(LeavingPlayer);
+		PlayerIDs.Remove(LeavingPlayer);
 	}
 }
 
@@ -782,7 +923,7 @@ void ARoomStreamingManager::RequestNewLayer(ALoadingZone* Requester)
 				If we got this far that means there definitely isn't a layer waiting for this guy so we'll have to create one
 				for them
 			*/
-			ConstructNewLayer(Requester, RequesteeAddr.LayerName);
+			BeginConstructLayer(Requester, RequesteeAddr.LayerName);
 		}
 		else
 			UStaticFuncLib::Print("ARoomStreamingManager::RequestNewLayer: Couldn't find a layer named \'" +
@@ -792,56 +933,213 @@ void ARoomStreamingManager::RequestNewLayer(ALoadingZone* Requester)
 		UStaticFuncLib::Print("ARoomStreamingManager::RequestNewLayer: GetRoomAddress call has failed.", true);
 }
 
-void ARoomStreamingManager::ConstructNewLayer(ALoadingZone* Creator, const FName& ParentLayerName)
+void ARoomStreamingManager::BeginConstructLayer(ALoadingZone* Creator, const FName& ParentLayerName)
 {
-	FStreamedRoomTreeNode* ParentLayer = LayerNodes.Find(ParentLayerName);
-
-	if (nullptr != ParentLayer)
+	if (UKismetSystemLibrary::IsServer(this))
 	{
-		FStreamedRoomTreeNode* PrefabLayer = LayerNodes.Find(Creator->DestinationRoom.LayerName);
-
-		if (nullptr != PrefabLayer)
+		if (LayerNodes.Contains(ParentLayerName))
 		{
-			FName NewLayerName = *(Creator->DestinationRoom.LayerName.ToString() + "_Inst_" + FString::FromInt(UniqueInstanceLayerID++));
-
-			FStreamedRoomTreeNode& NewLayerNode = LayerNodes.Add(NewLayerName);
-
-			float NewLayerOffset = 0.0f;
-			if (UnusedOffsets.Num() > 0)
+			if (LayerNodes.Contains(Creator->DestPrefabLayer))
 			{
-				NewLayerOffset = UnusedOffsets[0];
-				UnusedOffsets.RemoveAt(0);
+				FName NewLayerName = *(Creator->DestPrefabLayer.ToString() + "_Inst_" + FString::FromInt(UniqueInstanceLayerID++));
+
+				WaitingDuringLayerCreation.Add(NewLayerName, Creator);
+
+				ConstructLayer(NewLayerName, Creator->DestPrefabLayer, ParentLayerName);
 			}
 			else
-				NewLayerOffset = LayerNodes.Num() * -10000;
-
-			PrefabLayer->Layer.CloneLayer(NewLayerNode.Layer, NewLayerName, NewLayerOffset);
-
-			NewLayerNode.Parent = ParentLayerName;
-			NewLayerNode.Layer.InstantiatingLZName = Creator->LZName;
-			NewLayerNode.Layer.Offset = NewLayerOffset;
-
-			for (auto &currRoomPair : NewLayerNode.Layer.RoomsInLayer)
-				RoomAddresses.Add(currRoomPair.Value.RoomRef, { NewLayerName,currRoomPair.Key,EStreamedRoomAddressType::NormalAddress });
+				UStaticFuncLib::Print("ARoomStreamingManager::BeginConstructLayer: Couldn't find a prefab layer named \'" +
+					Creator->DestPrefabLayer.ToString() + "\'!", true);
 		}
 		else
-			UStaticFuncLib::Print("ARoomStreamingManager::ConstructNewLayer: Couldn't find a prefab layer named \'" +
-								  Creator->DestinationRoom.LayerName.ToString() + "\'!", true);
+			UStaticFuncLib::Print("ARoomStreamingManager::BeginConstructLayer: Couldn't find a layer named \'" +
+				ParentLayerName.ToString() + "\'!", true);
+	}
+}
+
+void ARoomStreamingManager::ConstructLayer_Implementation(const FName& LayerName, const FName& PrefabLayerName, const FName& ParentLayerName)
+{
+	FLayerReconstructionData NewReconstructData;
+	NewReconstructData.LayerName = LayerName;
+	NewReconstructData.PrefabLayerName = PrefabLayerName;
+	NewReconstructData.ParentLayerName = ParentLayerName;
+
+	FStreamedRoomTreeNode* PrefabLayer = LayerNodes.Find(PrefabLayerName);
+
+	FStreamedRoomTreeNode& NewLayerNode = LayerNodes.Add(LayerName);
+
+	float NewLayerOffset = 0.0f;
+	if (UnusedOffsets.Num() > 0)
+	{
+		NewLayerOffset = UnusedOffsets[0];
+		UnusedOffsets.RemoveAt(0);
 	}
 	else
-		UStaticFuncLib::Print("ARoomStreamingManager::ConstructNewLayer: Couldn't find a layer named \'" +
-							  ParentLayerName.ToString() + "\'!", true);
+	{
+		if (UsedOffsets.Num() > 0)
+		{
+			TArray<float> UsedOffsArray = UsedOffsets.Array();
+			UsedOffsArray.Sort();
+			NewLayerOffset = UsedOffsArray[0];
+		}
+
+		NewLayerOffset -= 500;//100;//10000;
+	}
+
+	//UStaticFuncLib::NetPrint(this,
+	//	"Layer Offset Assigned to layer \'" + LayerName.ToString() + "\': " + FString::SanitizeFloat(NewLayerOffset), true);
+
+	UsedOffsets.Add(NewLayerOffset);
+
+	PrefabLayer->Layer.CloneLayer(NewLayerNode.Layer, LayerName, NewLayerOffset);
+
+	//{
+	//	FString LSVStr = "{ ";
+	//	for (ULevelStreaming* currLSV : GetWorld()->StreamingLevels)
+	//	{
+	//		FString currStr = currLSV->GetName() + ", ";
+	//		currStr.RemoveFromStart("LevelStreamingKismet");
+	//		LSVStr += currStr;
+	//	}
+
+	//	LSVStr.RemoveFromEnd(", ");
+
+	//	UStaticFuncLib::NetPrint(this, "Constructed Layer \'" + LayerName.ToString() + "\'" + "\n\tCurrent Volumes: " + LSVStr + " }", true);
+	//}
+
+	NewLayerNode.Parent = ParentLayerName;
+	NewLayerNode.Layer.Offset = NewLayerOffset;
+
+	FStreamedRoomTreeNode* ParentLayer = LayerNodes.Find(ParentLayerName);
+	if (nullptr != ParentLayer)
+		ParentLayer->Children.Add(LayerName);
+	else
+		UStaticFuncLib::NetPrint(this,"ConstructLayer_Implementation: Couldn't find parent layer \'" + ParentLayerName.ToString() +
+									  "\' for new layer \'" + LayerName.ToString() + "\'!", true);
+
+	for (auto &currRoomPair : NewLayerNode.Layer.RoomsInLayer)
+	{
+		RoomAddresses.Add(currRoomPair.Value.RoomRef, { LayerName,currRoomPair.Key,EStreamedRoomAddressType::NormalAddress });
+
+		NewReconstructData.NameFixDatas.Add({ currRoomPair.Key, currRoomPair.Value.RoomRef->GetFName() });
+	}
+
+	if (UKismetSystemLibrary::IsServer(this))
+	{
+		ALoadingZone* Creator = WaitingDuringLayerCreation.FindRef(LayerName);
+		if (nullptr != Creator)
+		{
+			NewLayerNode.Layer.InstantiatingLZName = Creator->LZName;
+			Creator->DestinationRoom.LayerName = LayerName;
+		}
+		WaitingDuringLayerCreation.Remove(LayerName);
+	}
+
+	StateReconstructionData.LayerDatas.Add(NewReconstructData);
+}
+
+void ARoomStreamingManager::BroadcastPreexistingState()
+{
+	if (UKismetSystemLibrary::IsServer(this))
+	{
+		StateReconstructionData.UniqueIDNumber = ULevelStreamingKismet::StaticClass()->ClassUnique;
+
+		for (auto &curr : PlayerAddresses)
+		{
+			StateReconstructionData.PlayerIDs.Add(curr.Key);
+			StateReconstructionData.PlayerAddrs.Add(curr.Value);
+		}
+
+		//UStaticFuncLib::Print(FString::FromInt(StateReconstructionData.StaticStruct()->GetStructureSize()), true);
+
+		ConstructPreexistingState(StateReconstructionData);
+	}
+}
+
+void ARoomStreamingManager::ConstructPreexistingState_Implementation(const FRoomStateReconstructPacket& StatePacket)
+{
+	if (!UKismetSystemLibrary::IsServer(this))
+	{
+		for (const FLayerReconstructionData &currLayerData : StatePacket.LayerDatas)
+		{
+			if (!LayerNodes.Contains(currLayerData.LayerName))
+			{
+				ConstructLayer(currLayerData.LayerName, currLayerData.PrefabLayerName, currLayerData.ParentLayerName);
+
+				FStreamedRoomTreeNode* NewlyConstructedLayer = LayerNodes.Find(currLayerData.LayerName);
+
+				if (nullptr != NewlyConstructedLayer)
+				{
+					for (const FLSKReplaceData& currNameFixData : currLayerData.NameFixDatas)
+					{
+						FStreamedRoom* RetrievedRoom = NewlyConstructedLayer->Layer.RoomsInLayer.Find(currNameFixData.RoomName);
+
+						if (nullptr != RetrievedRoom && nullptr != RetrievedRoom->RoomRef)
+						{
+							FString NameStr = currNameFixData.LSKReplacementName.ToString();
+							RetrievedRoom->RoomRef->Rename(*NameStr, RetrievedRoom->RoomRef->GetOuter());
+						}
+					}
+				}
+			}
+		}
+
+		ULevelStreamingKismet::StaticClass()->ClassUnique = StatePacket.UniqueIDNumber;
+
+		for (int i = 0; i < StatePacket.PlayerIDs.Num(); ++i)
+		{
+			const FString& currPlayerID = StatePacket.PlayerIDs[i];
+			const FStreamedRoomAddress& currAddr = StatePacket.PlayerAddrs[i];
+			PlayerAddresses.Add(currPlayerID, currAddr);
+
+			FStreamedRoomTreeNode* RetrievedLayer = LayerNodes.Find(currAddr.LayerName);
+			if (nullptr != RetrievedLayer)
+				RetrievedLayer->Layer.TraverseTo(currPlayerID, currAddr.RoomName);
+		}
+
+		StateReconstructionData = StatePacket;
+	}
+}
+
+void ARoomStreamingManager::BeginTraverseFrom_Implementation(const FString& TraverserID, const FStreamedRoomAddress& Addr, bool Leaving)
+{
+	//UStaticFuncLib::NetPrint(this, "Traversing from address {" + Addr.LayerName.ToString() + ", " + Addr.RoomName.ToString() + "}", true);
+
+	FStreamedRoomTreeNode* RetrievedLayer = LayerNodes.Find(Addr.LayerName);
+
+	if (nullptr != RetrievedLayer)
+	{
+		RetrievedLayer->Layer.TraverseFrom(TraverserID, Addr.RoomName);
+
+		if (Leaving)
+			PlayerAddresses.Remove(TraverserID);
+	}
+}
+
+void ARoomStreamingManager::BeginTraverseTo_Implementation(const FString& TraverserID, const FStreamedRoomAddress& Addr)
+{
+	//UStaticFuncLib::NetPrint(this, "Traversing to address {" + Addr.LayerName.ToString() + ", " + Addr.RoomName.ToString() + "}", true);
+
+	FStreamedRoomTreeNode* RetrievedLayer = LayerNodes.Find(Addr.LayerName);
+
+	if (nullptr != RetrievedLayer)
+	{
+		RetrievedLayer->Layer.TraverseTo(TraverserID, Addr.RoomName);
+		PlayerAddresses.Add(TraverserID, Addr);
+	}
 }
 
 void ARoomStreamingManager::TraverseBetween(AActor* TraversingActor, FName FromLayer, FName FromRoom, FName ToLayer, FName ToRoom)
 {
-	FStreamedRoomTreeNode* RetrievedFrom = LayerNodes.Find(FromLayer);
-	FStreamedRoomTreeNode* RetrievedTo = LayerNodes.Find(ToLayer);
+	FString* TraverserID = PlayerIDs.Find(TraversingActor);
 
-	if (nullptr != RetrievedFrom && nullptr != RetrievedTo)
+	if (nullptr != TraverserID)
 	{
-		RetrievedFrom->Layer.TraverseFrom(TraversingActor, FromRoom);
-		RetrievedTo->Layer.TraverseTo(TraversingActor, ToRoom);
+		if (LayerNodes.Contains(FromLayer) && LayerNodes.Contains(ToLayer))
+		{
+			BeginTraverseFrom(*TraverserID, { FromLayer,FromRoom });
+			BeginTraverseTo(*TraverserID, { ToLayer,ToRoom });
+		}
 	}
 }
 
@@ -873,10 +1171,10 @@ bool ARoomStreamingManager::RequestTraversal(const TArray<APawn*>& Players, ALoa
 					{
 						for (APawn* currPlayer : Players)
 						{
-							TraverseBetween(currPlayer, CurrentLayerName, CurrentRoomName, CurrentLayerName, FromLZ->DestinationRoom.RoomName);
+							FString currPlayerID = PlayerIDs.FindRef(currPlayer);
 
-							PlayerAddresses.Add(currPlayer,
-							{ CurrentLayerName, FromLZ->DestinationRoom.RoomName, EStreamedRoomAddressType::NormalAddress });
+							if (currPlayerID.Len() > 0)
+								TraverseBetween(currPlayer, CurrentLayerName, CurrentRoomName, CurrentLayerName, FromLZ->DestinationRoom.RoomName);
 						}
 
 						FromLZ->CurrentTargetAddress =
@@ -916,15 +1214,17 @@ bool ARoomStreamingManager::RequestTraversal(const TArray<APawn*>& Players, ALoa
 						{
 							for (APawn* currPlayer : Players)
 							{
-								TraverseBetween(currPlayer,
-												CurrentLayerName, CurrentRoomName,
-												ChosenChildLayerName, FromLZ->DestinationRoom.RoomName);
+								FString currPlayerID = PlayerIDs.FindRef(currPlayer);
 
-								PlayerAddresses.Add(currPlayer,
-								{ ChosenChildLayerName, FromLZ->DestinationRoom.RoomName, EStreamedRoomAddressType::NormalAddress });
+								if (currPlayerID.Len() > 0)
+								{
+									TraverseBetween(currPlayer,
+													CurrentLayerName, CurrentRoomName,
+													ChosenChildLayerName, FromLZ->DestinationRoom.RoomName);
+								}
 							}
 
-							ConstructNewLayer(FromLZ, CurrentLayerName);
+							BeginConstructLayer(FromLZ, CurrentLayerName);
 
 							FromLZ->CurrentTargetAddress =
 							{ ChosenChildLayerName, FromLZ->DestinationRoom.RoomName, EStreamedRoomAddressType::NormalAddress };
@@ -954,10 +1254,10 @@ bool ARoomStreamingManager::RequestTraversal(const TArray<APawn*>& Players, ALoa
 						{
 							for (APawn* currPlayer : Players)
 							{
-								TraverseBetween(currPlayer, CurrentLayerName, CurrentRoomName, CurrentLayer->Parent, FromLZ->DestinationRoom.RoomName);
+								FString currPlayerID = PlayerIDs.FindRef(currPlayer);
 
-								PlayerAddresses.Add(currPlayer,
-								{ CurrentLayer->Parent, FromLZ->DestinationRoom.RoomName, EStreamedRoomAddressType::NormalAddress });
+								if (currPlayerID.Len() > 0)
+									TraverseBetween(currPlayer, CurrentLayerName, CurrentRoomName, CurrentLayer->Parent, FromLZ->DestinationRoom.RoomName);
 							}
 
 							FromLZ->CurrentTargetAddress =
@@ -998,6 +1298,60 @@ bool ARoomStreamingManager::RequestTraversal(const TArray<APawn*>& Players, ALoa
 	return Result;
 }
 
+bool ARoomStreamingManager::AnyPlayersInLayer(FStreamedRoomTreeNode* LayerRef)
+{
+	if (LayerRef->Layer.PlayersPresent.Num() < 1)
+	{
+		for (FName currChild : LayerRef->Children)
+		{
+			FStreamedRoomTreeNode* RetrievedChild = LayerNodes.Find(currChild);
+
+			if (nullptr != RetrievedChild && AnyPlayersInLayer(RetrievedChild))
+				return true;
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+void ARoomStreamingManager::RemoveLayer(FStreamedRoomTreeNode* LayerRef, FName LayerName)
+{
+	for (FName &currChild : LayerRef->Children)
+	{
+		FStreamedRoomTreeNode* RetrievedChild = LayerNodes.Find(currChild);
+
+		if (nullptr != RetrievedChild)
+			RemoveLayer(RetrievedChild, currChild);
+	}
+
+	for (auto &currRoomPair : LayerRef->Layer.RoomsInLayer)
+		RoomAddresses.Remove(currRoomPair.Value.RoomRef);
+
+	UsedOffsets.Remove(LayerRef->Layer.Offset);
+	UnusedOffsets.Add(LayerRef->Layer.Offset);
+
+	LayerRef->Layer.Clear();
+
+	LayerNodes.Remove(LayerName);
+
+	StateReconstructionData.LayerDatas.RemoveAll([&LayerName](FLayerReconstructionData& a) { return a.LayerName == LayerName; });
+}
+
+void ARoomStreamingManager::BeginTryUnload_Implementation(const FStreamedRoomAddress& Address, bool IsInstancedLayer)
+{
+	FStreamedRoomTreeNode* RetrievedLayer = LayerNodes.Find(Address.LayerName);
+
+	if (nullptr != RetrievedLayer)
+	{
+		if (IsInstancedLayer && !AnyPlayersInLayer(RetrievedLayer))
+			RemoveLayer(RetrievedLayer, Address.LayerName);
+		else
+			RetrievedLayer->Layer.TryUnloadRooms(Address.RoomName);
+	}
+}
+
 void ARoomStreamingManager::PostTraverse(ALoadingZone* FromLZ)
 {
 	FStreamedRoomAddress ToCheckForRemove;
@@ -1006,35 +1360,7 @@ void ARoomStreamingManager::PostTraverse(ALoadingZone* FromLZ)
 		FStreamedRoomTreeNode* RetrievedLayer = LayerNodes.Find(ToCheckForRemove.LayerName);
 
 		if (nullptr != RetrievedLayer)
-		{
-			if (!RetrievedLayer->Layer.InstantiatingLZName.IsNone() && RetrievedLayer->Layer.PlayersPresent.Num() < 1)
-			{
-				for (FName &currChildName : RetrievedLayer->Children)
-				{
-					FStreamedRoomTreeNode* currChildLayer = LayerNodes.Find(currChildName);
-
-					if (nullptr != currChildLayer && currChildLayer->Layer.PlayersPresent.Num() > 0)
-						return;
-				}
-
-				// If we got here, it means this layer will be deleted.
-				//		Criterion for deletion, just to recap:
-				//				- Layer is an instanced layer (was created by an LZ, therefore its InstantiatingLZName is set)
-				//				- Layer just had its last player depart (layer was used once and is now empty)
-				//				- There are no players in any child layers
-				//					(players that would inevitably have to come back to this layer)
-				//
-
-				for (auto &currRoomPair : RetrievedLayer->Layer.RoomsInLayer)
-					RoomAddresses.Remove(currRoomPair.Value.RoomRef);
-
-				RetrievedLayer->Layer.Clear();
-
-				LayerNodes.Remove(ToCheckForRemove.LayerName);
-
-				RetrievedLayer = nullptr;
-			}
-		}
+			BeginTryUnload(ToCheckForRemove, !RetrievedLayer->Layer.InstantiatingLZName.IsNone());
 		else
 			UStaticFuncLib::Print("ARoomStreamingManager::PostTraverse: Couldn't find a layer \'" +
 								  ToCheckForRemove.LayerName.ToString() + "\' to evaluate for removal. "
@@ -1058,9 +1384,10 @@ bool ARoomStreamingManager::RequestTraversalDirect(TArray<APawn*>& Players, FStr
 				{
 					for (APawn* currPlayer : Players)
 					{
-						TraverseBetween(currPlayer, FromAddress.LayerName, FromAddress.RoomName, ToAddress.LayerName, ToAddress.RoomName);
+						FString currPlayerID = PlayerIDs.FindRef(currPlayer);
 
-						PlayerAddresses.Add(currPlayer, ToAddress);
+						if (currPlayerID.Len() > 0)
+							TraverseBetween(currPlayer, FromAddress.LayerName, FromAddress.RoomName, ToAddress.LayerName, ToAddress.RoomName);
 					}
 
 					return true;
@@ -1091,29 +1418,7 @@ void ARoomStreamingManager::PostTraverseDirect(FStreamedRoomAddress FromAddress)
 	FStreamedRoomTreeNode* FocusLayer = LayerNodes.Find(FromAddress.LayerName);
 
 	if (nullptr != FocusLayer)
-	{
-		if (!FocusLayer->Layer.InstantiatingLZName.IsNone() && FocusLayer->Layer.PlayersPresent.Num() < 1)
-		{
-			for (FName &currChildName : FocusLayer->Children)
-			{
-				FStreamedRoomTreeNode* currChildLayer = LayerNodes.Find(currChildName);
-
-				if (nullptr != currChildLayer && currChildLayer->Layer.PlayersPresent.Num() > 0)
-					return;
-			}
-
-			// If we got here, it means this layer meets the removal criterion and is to be removed.
-
-			for (auto &currRoomPair : FocusLayer->Layer.RoomsInLayer)
-				RoomAddresses.Remove(currRoomPair.Value.RoomRef);
-
-			FocusLayer->Layer.Clear();
-
-			LayerNodes.Remove(FromAddress.LayerName);
-
-			FocusLayer = nullptr;
-		}
-	}
+		BeginTryUnload(FromAddress, !FocusLayer->Layer.InstantiatingLZName.IsNone());
 	else
 		UStaticFuncLib::Print("ARoomStreamingManager::PostTraverseDirect: Couldn't find a layer \'" +
 							  FromAddress.LayerName.ToString() + "\' to evaluate for removal. "

@@ -17,6 +17,8 @@ public:
 	
 	static void Print(FString ToPrint, bool ToScreen = false);
 
+	static void NetPrint(UObject* WorldContext, FString ToPrint, bool ToScreen = false);
+
 	static bool ValidateObject(UObject* Obj, FString ToPrintIfInvalid, bool PrintToScreen = false);
 
 	UFUNCTION(BlueprintCallable, meta = (WorldContext="WorldContext"))

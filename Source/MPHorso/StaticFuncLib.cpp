@@ -38,6 +38,37 @@ void UStaticFuncLib::Print(FString ToPrint, bool ToScreen)
 		GEngine->AddOnScreenDebugMessage(-1, 4, FColor::Red, ToPrint);
 }
 
+void UStaticFuncLib::NetPrint(UObject* WorldContext, FString ToPrint, bool ToScreen)
+{
+	if (nullptr != WorldContext)
+	{
+		FString Prefix;
+
+		UWorld* World = WorldContext->GetWorld();
+		if (World)
+		{
+			if (World->WorldType == EWorldType::PIE)
+			{
+				switch (World->GetNetMode())
+				{
+				case NM_Client:
+					Prefix = FString::Printf(TEXT("Client %d: "), GPlayInEditorID - 1);
+					break;
+				case NM_DedicatedServer:
+				case NM_ListenServer:
+					Prefix = FString::Printf(TEXT("Server: "));
+					break;
+				case NM_Standalone:
+				default:
+					break;
+				}
+			}
+
+			Print(Prefix + ToPrint, ToScreen);
+		}
+	}
+}
+
 bool UStaticFuncLib::ValidateObject(UObject* Obj, FString ToPrintIfInvalid, bool PrintToScreen)
 {
 	if (nullptr == Obj)

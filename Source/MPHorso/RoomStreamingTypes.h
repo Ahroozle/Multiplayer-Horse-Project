@@ -71,7 +71,7 @@ struct FStreamedRoom
 		TArray<FStreamedRoomAddress> VisibleRooms;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
-		TSet<AActor*> PlayersPresent;
+		TSet<FString> PlayersPresent;
 
 	FORCEINLINE void LoadRoom()
 	{
@@ -100,13 +100,15 @@ struct FStreamedRoomLayer
 		TMap<FName, FStreamedRoom> RoomsInLayer;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
-		TSet<AActor*> PlayersPresent;
+		TSet<FString> PlayersPresent;
 
 	UPROPERTY(VisibleAnywhere)
 		float Offset = 0.0f;
 
-	void TraverseFrom(AActor* Player, FName RoomName);
-	void TraverseTo(AActor* Player, FName RoomName);
+	void TryUnloadRooms(FName RootRoomName);
+	void TraverseFrom(FString PlayerID, FName RoomName);
+	void TryLoadRooms(FName RootRoomName);
+	void TraverseTo(FString PlayerID, FName RoomName);
 
 	void GetRoomNeighbors(FName RoomName, TArray<FStreamedRoom*>& NeighboringRooms);
 
@@ -179,6 +181,9 @@ public:
 	UPROPERTY(EditInstanceOnly)
 		FName LZName;
 
+	UPROPERTY()
+		FName DestPrefabLayer;
+
 	UPROPERTY(EditInstanceOnly)
 		FStreamedRoomAddress DestinationRoom;
 
@@ -225,9 +230,17 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void FinishArrivingAnimation(APawn* FinishedArriving) { ArrivingPlayers.Remove(FinishedArriving); }
 
+	UFUNCTION(NetMulticast, Reliable)
+		void BroadcastArrivingAnimation(APawn* Target);
+	void BroadcastArrivingAnimation_Implementation(APawn* Target) { DoArrivingAnimation(Target); }
+
 	UFUNCTION(BlueprintNativeEvent)
 		void DoArrivingAnimation(APawn* Target);
 	void DoArrivingAnimation_Implementation(APawn* Target) { FinishArrivingAnimation(Target); }
+
+	UFUNCTION(NetMulticast, Reliable)
+		void BroadcastFixingArriveAnimation(const TArray<APawn*>& Targets);
+	void BroadcastFixingArriveAnimation_Implementation(const TArray<APawn*>& Targets) { DoFixingArriveAnimation(Targets); }
 
 	/*
 		This gets called whenever arriving at a new room ends buggily.
@@ -251,6 +264,10 @@ public:
 
 	UFUNCTION()
 		void OnFinallyDepart();
+
+	UFUNCTION(NetMulticast, Reliable)
+		void BroadcastDepartingAnimation(const TArray<APawn*>& Targets);
+	void BroadcastDepartingAnimation_Implementation(const TArray<APawn*>& Targets) { DoDepartingAnimation(Targets); }
 
 	UFUNCTION(BlueprintNativeEvent)
 		void DoDepartingAnimation(const TArray<APawn*>& Targets);
@@ -358,18 +375,54 @@ public:
 
 
 USTRUCT()
-struct FTraversalPacket
+struct FLSKReplaceData
 {
 	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY()
-		APawn* Player;
+		FName RoomName;
 
 	UPROPERTY()
-		FName LZName;
+		FName LSKReplacementName;
+};
+
+USTRUCT()
+struct FLayerReconstructionData
+{
+	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY()
-		FVector Offset;
+		FName LayerName;
+
+	UPROPERTY()
+		FName PrefabLayerName;
+
+	UPROPERTY()
+		FName ParentLayerName;
+
+	// This data is used to rename the resulting LevelStreamingKismets so that they match the serverside versions.
+	UPROPERTY()
+		TArray<FLSKReplaceData> NameFixDatas;
+};
+
+USTRUCT()
+struct FRoomStateReconstructPacket
+{
+	GENERATED_USTRUCT_BODY();
+
+	UPROPERTY()
+		TArray<FLayerReconstructionData> LayerDatas;
+
+	// Used to modify the unique name generator number to properly sync LevelStreamingKismet names.
+	UPROPERTY()
+		int UniqueIDNumber;
+
+	UPROPERTY()
+		TArray<FString> PlayerIDs;
+
+	UPROPERTY()
+		TArray<FStreamedRoomAddress> PlayerAddrs;
+
 };
 
 /*
@@ -384,7 +437,11 @@ class MPHORSO_API ARoomStreamingManager : public AActor
 		TMap<ULevelStreaming*, APawn*> WaitingDuringEntry;
 
 	UPROPERTY()
-		ULevelStreaming* LastInstanceCreated;
+		TMap<FName, ALoadingZone*> WaitingDuringLayerCreation;
+
+	// This data is used to reconstruct the current existing layers on client machines.
+	UPROPERTY()
+		FRoomStateReconstructPacket StateReconstructionData;
 
 public:
 	// Sets default values for this actor's properties
@@ -415,24 +472,41 @@ public:
 	UPROPERTY(VisibleInstanceOnly)
 		TMap<ULevelStreaming*, FStreamedRoomAddress> RoomAddresses;
 
+	// The name of the room in the overworld layer where players spawn when logging in under strange circumstances.
+	UPROPERTY(EditInstanceOnly)
+		FName DebugSpawnRoom;
+
 	/*
-		Keeps track of players' current room addresses for various uses.
+		Map of player actors to their respective IDs.
+	*/
+	UPROPERTY()
+		TMap<AActor*, FString> PlayerIDs;
+
+	/*
+		Keeps track of players' current room addresses for various uses. Indexed by Player ID.
 	*/
 	UPROPERTY(VisibleInstanceOnly)
-		TMap<AActor*, FStreamedRoomAddress> PlayerAddresses;
+		TMap<FString, FStreamedRoomAddress> PlayerAddresses;
 
 	UPROPERTY()
 		TArray<float> UnusedOffsets;
+
+	UPROPERTY()
+		TSet<float> UsedOffsets;
 
 	UPROPERTY()
 		int UniqueInstanceLayerID = 0;
 
 
 	UFUNCTION(BlueprintCallable)
-		void HandleEnteringPlayer(APawn* EnteringPlayer, const FString& PlayerID);
+		void HandleEnteringPlayer(APawn* EnteringPlayer, const FString& PlayerName, const FString& PlayerID);
 
 	UFUNCTION()
 		void FinishEnterPlayer();
+
+	// in case of testing emergency break comment glass
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "(Debug) Plop Entering Player"))
+		void PlopEnteringPlayer(APawn* EnteringPlayer, FStreamedRoomAddress Addr);
 
 	UFUNCTION()
 		void PlaceEnteringPlayer(APawn* EnteringPlayer, ULevelStreaming* Room);
@@ -442,20 +516,64 @@ public:
 
 
 	UFUNCTION(BlueprintCallable)
+		bool GetPlayerID(AActor* FocusActor, FString& FoundID)
+	{
+		if (PlayerIDs.Contains(FocusActor))
+		{
+			FoundID = PlayerIDs.FindRef(FocusActor);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	UFUNCTION(BlueprintCallable)
 		bool GetRoomAddress(AActor* FocusActor, FStreamedRoomAddress& FoundAddr);
 
 	UFUNCTION()
 		void RequestNewLayer(ALoadingZone* Requester);
 
 	UFUNCTION()
-		void ConstructNewLayer(ALoadingZone* Creator, const FName& ParentLayerName);
+		void BeginConstructLayer(ALoadingZone* Creator, const FName& ParentLayerName);
 
+	UFUNCTION(NetMulticast, Reliable)
+		void ConstructLayer(const FName& LayerName, const FName& PrefabLayerName, const FName& ParentLayerName);
+	void ConstructLayer_Implementation(const FName& LayerName, const FName& PrefabLayerName, const FName& ParentLayerName);
+	
+
+	UFUNCTION(BlueprintCallable)
+		void BroadcastPreexistingState();
+
+	UFUNCTION(NetMulticast, Reliable)
+		void ConstructPreexistingState(const FRoomStateReconstructPacket& StatePacket);
+	void ConstructPreexistingState_Implementation(const FRoomStateReconstructPacket& StatePacket);
+
+
+	//UFUNCTION(NetMulticast, Reliable)
+	//	void BeginTryLoad(const FStreamedRoomAddress& Address);
+	//void BeginTryLoad_Implementation(const FStreamedRoomAddress& Address);
+
+	UFUNCTION(NetMulticast, Reliable)
+		void BeginTraverseFrom(const FString& TraverserID, const FStreamedRoomAddress& Addr, bool Leaving = false);
+	void BeginTraverseFrom_Implementation(const FString& TraverserID, const FStreamedRoomAddress& Addr, bool Leaving = false);
+
+	UFUNCTION(NetMulticast, Reliable)
+		void BeginTraverseTo(const FString& TraverserID, const FStreamedRoomAddress& Addr);
+	void BeginTraverseTo_Implementation(const FString& TraverserID, const FStreamedRoomAddress& Addr);
 
 	UFUNCTION()
 		void TraverseBetween(AActor* TraversingActor, FName FromLayer, FName FromRoom, FName ToLayer, FName ToRoom);
 
 	UFUNCTION(BlueprintCallable)
 		bool RequestTraversal(const TArray<APawn*>& Players, ALoadingZone* FromLZ);
+
+	bool AnyPlayersInLayer(FStreamedRoomTreeNode* LayerRef);
+	void RemoveLayer(FStreamedRoomTreeNode* LayerRef, FName LayerName);
+
+	UFUNCTION(NetMulticast, Reliable)
+		void BeginTryUnload(const FStreamedRoomAddress& Address, bool IsInstancedLayer);
+	void BeginTryUnload_Implementation(const FStreamedRoomAddress& Address, bool IsInstancedLayer);
 
 	UFUNCTION(BlueprintCallable)
 		void PostTraverse(ALoadingZone* FromLZ);
