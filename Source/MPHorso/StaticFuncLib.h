@@ -196,4 +196,14 @@ public:
 
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Vigenere-ish Cipher Decrypt"))
 		FString ViggishCipherDecrypt(FString Base, FString Key, FString Alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
+
+	// Note: Can't be run in-editor right now. Will fix later.
+	UFUNCTION(BlueprintCallable)
+		static void ConstructVectorFieldFromUVs(FIntVector Res, FBox Bounds, UTexture2D* LocalPositions, UTexture2D* VectorValues, FString FilePath);
+
+
+	UFUNCTION(BlueprintCallable)
+		static void HideActorFromPlayerController(APlayerController* Controller, AActor* Actor) { Controller->HiddenActors.AddUnique(Actor); }
+
 };

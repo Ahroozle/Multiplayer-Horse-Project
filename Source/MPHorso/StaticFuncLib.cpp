@@ -1190,3 +1190,95 @@ FString UStaticFuncLib::ViggishCipherDecrypt(FString Base, FString Key, FString 
 
 	return ResultStr;
 }
+
+void UStaticFuncLib::ConstructVectorFieldFromUVs(FIntVector Res, FBox LocalBounds, UTexture2D* LocalPositions, UTexture2D* VectorValues, FString FilePath)
+{
+	if (nullptr != LocalPositions && nullptr != VectorValues &&
+		LocalPositions->GetSizeX() == VectorValues->GetSizeX() &&
+		LocalPositions->GetSizeY() == VectorValues->GetSizeY() &&
+		LocalPositions->Source.GetFormat() == VectorValues->Source.GetFormat())
+	{
+		TArray<FVector4> Values;
+		Values.AddDefaulted(Res.X * Res.Y * Res.Z);
+
+		FVector BoundsWidth = LocalBounds.Max - LocalBounds.Min;
+
+		{
+			auto TryWriteValue = [&Values, &BoundsWidth, &LocalBounds, &Res](const FLinearColor& LocalPosCol, const FLinearColor& VectorValCol)
+								 {
+								 	if (!LocalPosCol.Equals(FLinearColor::Black))
+								 	{
+								 		FVector LocPosVec(LocalPosCol);
+								 		FVector ValueVec(VectorValCol);
+								 
+								 		FVector InRange = (LocPosVec - LocalBounds.Min) / BoundsWidth;
+								 
+								 		int FinalIndex =
+								 			(FMath::Clamp(FMath::FloorToInt(InRange.Z * Res.Z), 0, Res.Z - 1) * Res.X * Res.Y) +
+								 			(FMath::Clamp(FMath::FloorToInt(InRange.Y * Res.Y), 0, Res.Y - 1) * Res.X) +
+								 			FMath::Clamp(FMath::FloorToInt(InRange.X * Res.X), 0, Res.X - 1);
+								 
+								 		Values[FinalIndex] += FVector4(ValueVec, 1.0f);
+								 	}
+								 };
+
+			auto& LocPosMipZero = LocalPositions->PlatformData->Mips[0];
+			auto& ValsMipZero = VectorValues->PlatformData->Mips[0];
+
+			if (LocalPositions->Source.GetFormat() == TSF_BGRA8)
+			{
+				const FColor* LocPosMipData = static_cast<const FColor*>(LocPosMipZero.BulkData.Lock(LOCK_READ_ONLY));
+				const FColor* ValsMipData = static_cast<const FColor*>(ValsMipZero.BulkData.Lock(LOCK_READ_ONLY));
+
+				int TotalCells = (LocalPositions->GetSizeY() - 1) * LocalPositions->GetSurfaceWidth() + (LocalPositions->GetSizeX() - 1);
+
+				for (int i = 0; i <= TotalCells; ++i)
+					TryWriteValue(LocPosMipData[i], ValsMipData[i]);
+			}
+			else if (LocalPositions->Source.GetFormat() == TSF_RGBA16F)
+			{
+				const FFloat16Color* LocPosMipData = static_cast<const FFloat16Color*>(LocPosMipZero.BulkData.Lock(LOCK_READ_ONLY));
+				const FFloat16Color* ValsMipData = static_cast<const FFloat16Color*>(ValsMipZero.BulkData.Lock(LOCK_READ_ONLY));
+
+				int TotalCells = (LocalPositions->GetSizeY() - 1) * LocalPositions->GetSurfaceWidth() + (LocalPositions->GetSizeX() - 1);
+
+				for (int i = 0; i <= TotalCells; ++i)
+				{
+					FLinearColor LocCol =
+					{ LocPosMipData[i].R.GetFloat(), LocPosMipData[i].G.GetFloat(), LocPosMipData[i].B.GetFloat(), 1.0f };
+					FLinearColor ValCol =
+					{ ValsMipData[i].R.GetFloat(), ValsMipData[i].G.GetFloat(), ValsMipData[i].B.GetFloat(), 1.0f };
+					TryWriteValue(LocCol, ValCol);
+				}
+			}
+
+			if (LocPosMipZero.BulkData.IsLocked())
+				LocPosMipZero.BulkData.Unlock();
+
+			if (ValsMipZero.BulkData.IsLocked())
+				ValsMipZero.BulkData.Unlock();
+		}
+
+
+		auto VecToCSVStr = [](const FVector& a)
+		{
+			return FString::SanitizeFloat(a.X) + "," + FString::SanitizeFloat(a.Y) + "," + FString::SanitizeFloat(a.Z) + ",\n";
+		};
+
+		FString FileStr =
+			FString::FromInt(Res.X) + "," + FString::FromInt(Res.Y) + "," + FString::FromInt(Res.Z) + ",\n" +
+			VecToCSVStr(LocalBounds.Min) + VecToCSVStr(LocalBounds.Max);
+
+		for (FVector4& curr : Values)
+		{
+			FVector FinalVec = { curr.X,curr.Y,curr.Z };
+			FinalVec /= curr.W;
+
+			FileStr += VecToCSVStr(FinalVec);
+		}
+
+		FileStr.RemoveFromEnd("\n");
+
+		SaveStringToFile(FileStr, FilePath);
+	}
+}
