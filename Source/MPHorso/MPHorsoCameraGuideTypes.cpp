@@ -209,6 +209,22 @@ void AMPHorsoCameraGuideCluster::BeginPlay()
 		UStaticFuncLib::Print("AMPHorsoCameraGuideCluster::BeginPlay: No ArrowComponents found! Removing self from play.", true);
 		Destroy();
 	}
+	else
+	{
+		TArray<UActorComponent*> Prims = GetComponentsByClass(UPrimitiveComponent::StaticClass());
+
+		for (UActorComponent* currPrim : Prims)
+		{
+			UPrimitiveComponent* currCasted = Cast<UPrimitiveComponent>(currPrim);
+
+			if (currCasted->IsCollisionEnabled())
+			{
+				currCasted->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+				currCasted->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+				currCasted->SetCollisionObjectType(ECollisionChannel::ECC_Pawn);
+			}
+		}
+	}
 }
 
 // Called every frame
@@ -470,6 +486,20 @@ void AMPHorsoCameraConformer::BeginPlay()
 {
 	Super::BeginPlay();
 
+
+	TArray<UActorComponent*> Prims = GetComponentsByClass(UPrimitiveComponent::StaticClass());
+
+	for (UActorComponent* currPrim : Prims)
+	{
+		UPrimitiveComponent* currCasted = Cast<UPrimitiveComponent>(currPrim);
+
+		if (currCasted->IsCollisionEnabled())
+		{
+			currCasted->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
+			currCasted->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+			currCasted->SetCollisionObjectType(ECollisionChannel::ECC_Pawn);
+		}
+	}
 }
 
 void AMPHorsoCameraConformer::OnConstruction(const FTransform& Transform)

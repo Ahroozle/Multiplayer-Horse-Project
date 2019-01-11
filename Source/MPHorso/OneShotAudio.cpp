@@ -5,6 +5,7 @@
 
 #include "StaticFuncLib.h"
 #include "MPHorsoGameInstance.h"
+#include "MPHorsoSettingsSave.h"
 
 //#include "Kismet/KismetSystemLibrary.h"
 
@@ -38,7 +39,11 @@ void AOneShotAudio::Init(USoundCue* sound, float pitch)
 	{
 		UMPHorsoGameInstance* gameInst = UStaticFuncLib::RetrieveGameInstance(this);
 		if (nullptr != gameInst)
-			audioComp->SetVolumeMultiplier(gameInst->MasterVolume * gameInst->SFXVolume);
+		{
+			UMPHorsoSettingsSave* Settings = gameInst->GetSettingsSave();
+
+			audioComp->SetVolumeMultiplier(Settings->MasterVolume * Settings->SFX_Volume);
+		}
 		else
 			UStaticFuncLib::Print("AOneShotAudio::Init: Couldn't retrieve the game instance! "
 								  "Sound effect volume will not be changed to fit settings as a result.", true);

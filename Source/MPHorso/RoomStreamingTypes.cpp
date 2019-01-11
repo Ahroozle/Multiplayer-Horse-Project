@@ -661,7 +661,6 @@ void ARoomStreamingManager::HandleEnteringPlayer(APawn* EnteringPlayer, const FS
 
 	FString FocusPlayerID = PlayerID;
 	FStreamedRoomAddress SpawnAddr;
-	bool SpawnDataInitialized = false;
 
 	UMPHorsoGameInstance* gameInst = UStaticFuncLib::RetrieveGameInstance(this);
 
@@ -671,52 +670,16 @@ void ARoomStreamingManager::HandleEnteringPlayer(APawn* EnteringPlayer, const FS
 
 		if (nullptr != WorldSave)
 		{
-			bool IsNewPlayer = true;
+			FWorldboundPlayerData* RetrievedData = WorldSave->PlayerIDsAndData.Find(PlayerID);
 
-			if (PlayerID.Len() > 0)
-			{
-				FWorldboundPlayerData* RetrievedData = WorldSave->PlayerIDsAndData.Find(PlayerID);
-
-				if (nullptr != RetrievedData)
-				{
-					SpawnAddr = { FName(), RetrievedData->RespawnRoomName, EStreamedRoomAddressType::NormalAddress };
-
-					IsNewPlayer = false;
-				}
-				else
-					UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Could not find save data for PlayerID \'" +
-										  PlayerID + "\' as requested by player \'" + PlayerName + "\'. They will be treated as a new "
-										  "player for now.", true);
-			}
-
-			if (IsNewPlayer)
-			{
-				FocusPlayerID = USaveGameHelperLibrary::GeneratePlayerID(PlayerName, WorldSave->PlayerIDsAndData.Num());
-
-				FWorldboundPlayerData& NewPlayerData = WorldSave->PlayerIDsAndData.Add(FocusPlayerID);
-
-				TSubclassOf<UMPHorsoWorldType> RetrievedWorldType =
-					USaveGameHelperLibrary::LoadWorldTypeByName(WorldSave->WorldSettings.WorldType);
-
-				NewPlayerData.RespawnRoomName = RetrievedWorldType.GetDefaultObject()->DefaultRespawnRoomName;
-
-				if (nullptr != RetrievedWorldType)
-					SpawnAddr = { FName(), NewPlayerData.RespawnRoomName, EStreamedRoomAddressType::NormalAddress };
-			}
-
-			SpawnDataInitialized = true;
+			if (nullptr != RetrievedData)
+				SpawnAddr = { FName(), RetrievedData->RespawnRoomName, EStreamedRoomAddressType::NormalAddress };
+			else
+				SpawnAddr = { FName(), DebugSpawnRoom, EStreamedRoomAddressType::NormalAddress };
 		}
 	}
 	else
 		UStaticFuncLib::Print("ARoomStreamingManager::HandleEnteringPlayer: Couldn't retrieve the game instance!", true);
-
-	// this code is only run in debug (or other strange) situations where there isn't a world save or access to a game instance.
-	if(!SpawnDataInitialized)
-	{
-		// Construct and assign a temporary PlayerID. No saving will be done for obvious reasons.
-		FocusPlayerID = USaveGameHelperLibrary::GeneratePlayerID(PlayerName, PlayerIDs.Num());
-		SpawnAddr = { FName(), DebugSpawnRoom };
-	}
 
 
 	FStreamedRoomTreeNode* FoundLayer = LayerNodes.Find(SpawnAddr.LayerName);
@@ -788,7 +751,7 @@ void ARoomStreamingManager::PlopEnteringPlayer(APawn* EnteringPlayer, FStreamedR
 			if (nullptr != FoundRoom->RoomRef)
 			{
 				FString& NewPlayerID =
-					PlayerIDs.Add(EnteringPlayer, USaveGameHelperLibrary::GeneratePlayerID(EnteringPlayer->GetName(), PlayerIDs.Num()));
+					PlayerIDs.Add(EnteringPlayer, EnteringPlayer->GetName());
 
 				BeginTraverseTo(NewPlayerID, Addr);
 

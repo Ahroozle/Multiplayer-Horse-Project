@@ -17,6 +17,8 @@
 
 #include "Runtime/PakFile/Public/IPlatformFilePak.h"
 
+#include "MPHorsoSettingsSave.h"
+
 
 void UMPHorsoGameInstance::Init()
 {
@@ -74,6 +76,339 @@ FName UMPHorsoGameInstance::GetLocalPlayerName()
 		return *CharacterSave->CharacterName;
 
 	else return FName(EName::NAME_None);
+}
+
+UMPHorsoSettingsSave* UMPHorsoGameInstance::GetSettingsSave()
+{
+	if (nullptr == SettingsSave)
+	{
+		USaveGame* RetrievedSave = UGameplayStatics::LoadGameFromSlot("_GeneralSettings", 0);
+
+		if (nullptr != RetrievedSave)
+			SettingsSave = (UMPHorsoSettingsSave*)RetrievedSave;
+		else
+		{
+			SettingsSave = (UMPHorsoSettingsSave*)UGameplayStatics::CreateSaveGameObject(UMPHorsoSettingsSave::StaticClass());
+			UGameplayStatics::SaveGameToSlot(SettingsSave, "_GeneralSettings", 0);
+		}
+	}
+
+	return SettingsSave;
+}
+
+bool UMPHorsoGameInstance::GetWorldAccessControlList(FAccessControlList& WorldACL)
+{
+	if (nullptr != WorldSave)
+	{
+		WorldACL = WorldSave->ServerData.ACL;
+		return true;
+	}
+
+	return false;
+}
+
+void UMPHorsoGameInstance::GetUniversalAccessControlList(FAccessControlList& UniversalACL)
+{
+	UniversalACL = GetSettingsSave()->UniversalACL;
+}
+
+void UMPHorsoGameInstance::SaveSettings() { UGameplayStatics::SaveGameToSlot(SettingsSave, "_GeneralSettings", 0); }
+
+bool UMPHorsoGameInstance::GetPlayerIP(APlayerController* Player, FString& OutIP)
+{
+	OutIP.Empty();
+	if (nullptr != Player && nullptr != Player->NetConnection)
+		OutIP = Player->NetConnection->LowLevelGetRemoteAddress(false);
+
+	return !OutIP.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::Kick(const FString& InvokerIP, const FString& TargetID, float DurationSeconds, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::KickPlayer(this, *FocusACL, InvokerID, TargetID, DurationSeconds);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::Unkick(const FString& InvokerIP, const FString& TargetID, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::UnkickPlayer(this, *FocusACL, InvokerID, TargetID);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::Ban(const FString& InvokerIP, const FString& TargetID, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::BanPlayer(this, *FocusACL, InvokerID, TargetID);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::Unban(const FString& InvokerIP, const FString& TargetID, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::UnbanPlayer(this, *FocusACL, InvokerID, TargetID);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::Promote(const FString& InvokerIP, const FString& TargetID, const FString& ModTier, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::PromotePlayer(this, *FocusACL, InvokerID, TargetID, *ModTier);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::Demote(const FString& InvokerIP, const FString& TargetID, const FString& ModTier, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::DemotePlayer(this, *FocusACL, InvokerID, TargetID, *ModTier);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::MakeModTier(const FString& InvokerIP, const FString& TierName, const TArray<FString>& ModPerms, int InsertIndex, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::MakeModTier(this, *FocusACL, InvokerID, *TierName, ModPerms, InsertIndex);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::RemoveModTier(const FString& InvokerIP, const FString& TierName, const FString& MoveTierName, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::RemoveModTier(this, *FocusACL, InvokerID, *TierName, *MoveTierName);
+
+	return ErrorString.IsEmpty();
+}
+
+bool UMPHorsoGameInstance::ChangeListMode(const FString& InvokerIP, bool Whitelist, bool Universal, FString& ErrorString)
+{
+	FAccessControlList* FocusACL;
+
+	FString InvokerID = UAccessControlListFuncLib::ConstructPlayerID(InvokerIP);
+
+	if (Universal)
+	{
+		if (!UserIsHost(InvokerID))
+		{
+			ErrorString = "You are not the host.";
+			return false;
+		}
+
+		FocusACL = &GetSettingsSave()->UniversalACL;
+	}
+	else
+	{
+		if (nullptr == WorldSave)
+		{
+			ErrorString = "Save file for this world was not found; No access control list could be retrieved.";
+			return false;
+		}
+
+		FocusACL = &WorldSave->ServerData.ACL;
+	}
+
+	ErrorString = UAccessControlListFuncLib::ChangeListMode(this, *FocusACL, InvokerID, Whitelist);
+
+	return ErrorString.IsEmpty();
 }
 
 UNPCRuleBlock* UMPHorsoGameInstance::GetNPCRuleBlock(TSubclassOf<UNPCRuleBlock> RuleBlockClass)

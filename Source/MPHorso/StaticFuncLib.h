@@ -206,4 +206,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 		static void HideActorFromPlayerController(APlayerController* Controller, AActor* Actor) { Controller->HiddenActors.AddUnique(Actor); }
 
+	UFUNCTION(BlueprintCallable)
+		static bool LineTraceActor(AActor* Actor, struct FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, bool bTraceComplex)
+		{
+			FCollisionQueryParams Params(FName(), bTraceComplex);
+			return Actor->ActorLineTraceSingle(OutHit, Start, End, TraceChannel, Params);
+		}
+
 };

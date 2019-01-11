@@ -12,7 +12,7 @@
 #include "StaticFuncLib.h"
 
 #include "Networking.h"
-#include "AES.h"
+//#include "AES.h"
 
 #include "Kismet/GameplayStatics.h"
 
@@ -32,6 +32,7 @@ FString UCharacterSaveBase::GetGeneratedFileName() const
 	return "CSave_" + FString::FromInt(UniqueID) + "_" + CleanedCharName + "_" + VersionString;
 }
 
+
 FString UWorldSaveBase::GetGeneratedFileName() const
 {
 	TArray<TCHAR> NameAsArr = WorldName.GetCharArray();
@@ -45,6 +46,23 @@ FString UWorldSaveBase::GetGeneratedFileName() const
 
 	FString CleanedWorldName(NameAsArr.Num(), NameAsArr.GetData());
 	return "WSave_" + FString::FromInt(UniqueID)  + "_" + CleanedWorldName + "_" + VersionString;
+}
+
+bool UWorldSaveBase::RegisterNewPlayerInWorld(const FString& NewID)
+{
+	if (!PlayerIDsAndData.Contains(NewID))
+	{
+		FWorldboundPlayerData NewPlayerData;
+
+		TSubclassOf<UMPHorsoWorldType> RetrievedWorldType =
+			USaveGameHelperLibrary::LoadWorldTypeByName(WorldSettings.WorldType);
+
+		NewPlayerData.RespawnRoomName = RetrievedWorldType.GetDefaultObject()->DefaultRespawnRoomName;
+
+		return true;
+	}
+
+	return false;
 }
 
 
@@ -341,24 +359,24 @@ void USaveGameHelperLibrary::CalculateAndApplyHostility(UPARAM(Ref) FWorldSettin
 	WorldData.TotalHostility = CalculateHostilityPercentage(WorldData, EHDummy, WHDummy, FHDummy);
 }
 
-FString USaveGameHelperLibrary::GenerateServerID(FString WorldName)
-{
-	bool dummy;
-	auto AddrPtr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLocalHostAddr(*GLog, dummy);
-	FString AddrStr = AddrPtr->ToString(false);
-
-	int Size = AddrStr.Len();
-	Size = Size + (FAES::AESBlockSize - (Size % FAES::AESBlockSize));
-
-	TArray<uint8> buffer;
-	buffer.Reserve(Size);
-	FString::ToBlob(AddrStr, buffer.GetData(), Size);
-	FAES::EncryptData(buffer.GetData(), Size);
-
-	return FString::FromHexBlob(buffer.GetData(), Size) + FString::Printf(TEXT("%llu"), GetTypeHash(WorldName));
-}
-
-FString USaveGameHelperLibrary::GeneratePlayerID(FString PlayerName, int PlayerNumber)
-{
-	return FString::Printf(TEXT("%llu"), GetTypeHash(PlayerName)) + FString::FromInt(PlayerNumber);
-}
+//FString USaveGameHelperLibrary::GenerateServerID(FString WorldName)
+//{
+//	bool dummy;
+//	auto AddrPtr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLocalHostAddr(*GLog, dummy);
+//	FString AddrStr = AddrPtr->ToString(false);
+//
+//	int Size = AddrStr.Len();
+//	Size = Size + (FAES::AESBlockSize - (Size % FAES::AESBlockSize));
+//
+//	TArray<uint8> buffer;
+//	buffer.Reserve(Size);
+//	FString::ToBlob(AddrStr, buffer.GetData(), Size);
+//	FAES::EncryptData(buffer.GetData(), Size);
+//
+//	return FString::FromHexBlob(buffer.GetData(), Size) + FString::Printf(TEXT("%llu"), GetTypeHash(WorldName));
+//}
+//
+//FString USaveGameHelperLibrary::GeneratePlayerID(FString PlayerName, int PlayerNumber)
+//{
+//	return FString::Printf(TEXT("%llu"), GetTypeHash(PlayerName)) + FString::FromInt(PlayerNumber);
+//}

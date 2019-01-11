@@ -5,6 +5,7 @@
 
 #include "StaticFuncLib.h"
 #include "MPHorsoGameInstance.h"
+#include "MPHorsoSettingsSave.h"
 
 #include "Kismet/KismetMathLibrary.h"
 
@@ -51,10 +52,12 @@ void AMPHorsoMusicManager::BeginPlay()
 
 	if (nullptr != gameInst)
 	{
-		BGM_A->SetVolumeMultiplier(gameInst->MasterVolume * gameInst->BGMVolume);
-		BGM_B->SetVolumeMultiplier(gameInst->MasterVolume * gameInst->BGMVolume);
-		Ambience_A->SetVolumeMultiplier(gameInst->MasterVolume * gameInst->AmbiVolume);
-		Ambience_B->SetVolumeMultiplier(gameInst->MasterVolume * gameInst->AmbiVolume);
+		UMPHorsoSettingsSave* Settings = gameInst->GetSettingsSave();
+
+		BGM_A->SetVolumeMultiplier(Settings->MasterVolume * Settings->BGM_Volume);
+		BGM_B->SetVolumeMultiplier(Settings->MasterVolume * Settings->BGM_Volume);
+		Ambience_A->SetVolumeMultiplier(Settings->MasterVolume * Settings->AmbienceVolume);
+		Ambience_B->SetVolumeMultiplier(Settings->MasterVolume * Settings->AmbienceVolume);
 	}
 	else
 		UStaticFuncLib::Print("AMPHorsoMusicManager::BeginPlay: Couldn't retrieve the game instance! "
@@ -75,8 +78,10 @@ void AMPHorsoMusicManager::SetBGMVolume(float NewVolume)
 
 	if (nullptr != gameInst)
 	{
-		BGM_A->SetVolumeMultiplier(gameInst->MasterVolume * NewVolume);
-		BGM_B->SetVolumeMultiplier(gameInst->MasterVolume * NewVolume);
+		UMPHorsoSettingsSave* Settings = gameInst->GetSettingsSave();
+
+		BGM_A->SetVolumeMultiplier(Settings->MasterVolume * NewVolume);
+		BGM_B->SetVolumeMultiplier(Settings->MasterVolume * NewVolume);
 	}
 	else
 		UStaticFuncLib::Print("AMPHorsoMusicManager::SetBGMVolume: Couldn't retrieve the game instance! "
@@ -89,8 +94,10 @@ void AMPHorsoMusicManager::SetAmbiVolume(float NewVolume)
 
 	if (nullptr != gameInst)
 	{
-		Ambience_A->SetVolumeMultiplier(gameInst->MasterVolume * NewVolume);
-		Ambience_B->SetVolumeMultiplier(gameInst->MasterVolume * NewVolume);
+		UMPHorsoSettingsSave* Settings = gameInst->GetSettingsSave();
+
+		Ambience_A->SetVolumeMultiplier(Settings->MasterVolume * NewVolume);
+		Ambience_B->SetVolumeMultiplier(Settings->MasterVolume * NewVolume);
 	}
 	else
 		UStaticFuncLib::Print("AMPHorsoMusicManager::SetAmbiVolume: Couldn't retrieve the game instance! "
@@ -122,7 +129,11 @@ void AMPHorsoMusicManager::CrossfadeBGMTo(USoundCue* NewBGM, float FadeTime)
 	UMPHorsoGameInstance* gameInst = UStaticFuncLib::RetrieveGameInstance(this);
 
 	if (nullptr != gameInst)
-		VolMul = gameInst->MasterVolume * gameInst->BGMVolume;
+	{
+		UMPHorsoSettingsSave* Settings = gameInst->GetSettingsSave();
+
+		VolMul = Settings->MasterVolume * Settings->BGM_Volume;
+	}
 	else
 		UStaticFuncLib::Print("AMPHorsoMusicManager::CrossfadeBGMTo: Couldn't retrieve the game instance! "
 							  "BGM Volume will not be changed to fit settings as a result.", true);
@@ -141,7 +152,11 @@ void AMPHorsoMusicManager::CrossfadeAmbiTo(USoundCue* NewAmbience, float FadeTim
 	UMPHorsoGameInstance* gameInst = UStaticFuncLib::RetrieveGameInstance(this);
 
 	if (nullptr != gameInst)
-		VolMul = gameInst->MasterVolume * gameInst->BGMVolume;
+	{
+		UMPHorsoSettingsSave* Settings = gameInst->GetSettingsSave();
+
+		VolMul = Settings->MasterVolume * Settings->BGM_Volume;
+	}
 	else
 		UStaticFuncLib::Print("AMPHorsoMusicManager::CrossfadeAmbiTo: Couldn't retrieve the game instance! "
 							  "BGM Volume will not be changed to fit settings as a result.", true);

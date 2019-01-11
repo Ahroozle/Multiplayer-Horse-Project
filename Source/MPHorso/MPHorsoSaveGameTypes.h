@@ -5,6 +5,7 @@
 #include "GameFramework/SaveGame.h"
 #include "NPCGeneralTypes.h"
 #include "MPHorsoItemTypes.h"
+#include "AccessControlListTypes.h"
 #include "MPHorsoSaveGameTypes.generated.h"
 
 
@@ -49,6 +50,17 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 		FName DefaultRespawnRoomName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+		UTexture2D* WorldThumbnail;
+
+	UFUNCTION(BlueprintPure)
+		static UTexture2D* GetWorldThumbnail(TSubclassOf<UMPHorsoWorldType> WorldTypeClass)
+		{
+			if (nullptr != WorldTypeClass)
+				return WorldTypeClass.GetDefaultObject()->WorldThumbnail;\
+			return nullptr;
+		}
 };
 
 /*
@@ -178,8 +190,8 @@ public:
 		Map of Server IDs to the respective PlayerID pertaining to this character
 		on them. Used for various identification and persistence/save operations.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
-		TMap<FString, FString> ServerIDsToPlayerIDs;
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Save")
+	//	TMap<FString, FString> ServerIDsToPlayerIDs;
 
 	/*
 		The name of the difficulty the player is at!
@@ -252,6 +264,9 @@ public:
 
 			return nullptr;
 		}
+
+	UFUNCTION(BlueprintPure)
+		FString GetCharacterNameForID() { return CharacterName + "_" + FString::FromInt(UniqueID); }
 
 	virtual FString GetGeneratedFileName() const override;
 	
@@ -472,6 +487,27 @@ struct FWorldSettingsData
 };
 
 USTRUCT(BlueprintType)
+struct FWorldServerData
+{
+	GENERATED_USTRUCT_BODY();
+
+	//UPROPERTY(BlueprintReadOnly)
+	//	FString Password;
+
+	UPROPERTY(BlueprintReadWrite)
+		FAccessControlList ACL;
+
+	UPROPERTY(BlueprintReadWrite)
+		int MaxPlayers;
+
+	UPROPERTY(BlueprintReadWrite)
+		int Port;
+
+	//UPROPERTY(BlueprintReadWrite)
+	//	bool QueueingAllowed = false;
+};
+
+USTRUCT(BlueprintType)
 struct FWorldboundPlayerData
 {
 	GENERATED_USTRUCT_BODY();
@@ -514,12 +550,16 @@ public:
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
 	//	bool HasEverBeenHosted = false;
 
-	// The identification string of this world as a server. Only valid if the world has ever been hosted.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
-		FString ServerID;
+	//// The identification string of this world as a server. Only valid if the world has ever been hosted.
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "World Save")
+	//	FString ServerID;
+
+	// Data specific to the world when used as a server. Only valid if world has ever been hosted.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "World Save")
+		FWorldServerData ServerData;
 
 	/*
-		Map storing both Player IDs (as strings) and the corresponding world-bound player
+		Map storing both Character IDs (as strings) and the corresponding world-bound player
 		data pertaining to each ID. Is used, of course, for identification and persistence
 		in online worlds.
 
@@ -559,7 +599,19 @@ public:
 		TArray<FWeatherSaveData> WeatherData;
 	
 
+	UFUNCTION(BlueprintCallable)
+		void SetServerAccessMode(bool Whitelist) { ServerData.ACL.WhitelistMode = Whitelist; }
+
+	UFUNCTION(BlueprintCallable)
+		void SetServerMaxPlayers(int NewMaxPlayers) { ServerData.MaxPlayers = NewMaxPlayers; }
+
+	UFUNCTION(BlueprintCallable)
+		void SetServerPort(int NewPort) { ServerData.Port = NewPort; }
+
+
 	virtual FString GetGeneratedFileName() const override;
+
+	bool RegisterNewPlayerInWorld(const FString& NewID);
 
 };
 
@@ -599,11 +651,11 @@ public:
 		static void CalculateAndApplyHostility(UPARAM(Ref) FWorldSettingsData& WorldData);
 
 
-	UFUNCTION(BlueprintPure)
-		static FString GenerateServerID(FString WorldName);
+	//UFUNCTION(BlueprintPure)
+	//	static FString GenerateServerID(FString WorldName);
 
-	UFUNCTION(BlueprintPure)
-		static FString GeneratePlayerID(FString PlayerName, int PlayerNumber);
+	//UFUNCTION(BlueprintPure)
+	//	static FString GeneratePlayerID(FString PlayerName, int PlayerNumber);
 
 	UFUNCTION(BlueprintCallable)
 		static void RetrieveAllWorldTypes(TArray<FName>& FoundNames)

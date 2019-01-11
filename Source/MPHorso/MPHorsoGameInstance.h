@@ -17,6 +17,8 @@ class AMPHorsoMusicManager;
 
 class ANPCNavManager;
 
+class UMPHorsoSettingsSave;
+
 UENUM(BlueprintType)
 enum class EAccessControlType : uint8
 {
@@ -42,6 +44,9 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 		UWorldSaveBase* WorldSave;
 
 	UPROPERTY()
+		UMPHorsoSettingsSave* SettingsSave;
+
+	UPROPERTY()
 		TMap<TSubclassOf<UNPCRuleBlock>, UNPCRuleBlock*> InstantiatedNPCRuleBlocks;
 
 	UPROPERTY()
@@ -57,7 +62,7 @@ class MPHORSO_API UMPHorsoGameInstance : public UGameInstance
 public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-		TMap<FName, TAssetSubclassOf<AMagicUI>> AllSpells;
+		TMap<FName, TAssetSubclassOf<class AMagicUI>> AllSpells;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 		TSubclassOf<UCharacterSaveBase> CurrentCharacterSaveType;
@@ -82,52 +87,27 @@ public:
 
 	UPROPERTY(BlueprintReadWrite)
 		bool IsHosting = false;
-	UPROPERTY(BlueprintReadWrite)
-		FString Password;
 
 	UPROPERTY(BlueprintReadWrite)
-		EAccessControlType AccessControlType = EAccessControlType::AC_None;
-	UPROPERTY(BlueprintReadWrite)
-		FString AccessControlListPath;
-	UPROPERTY(BlueprintReadWrite)
-		int ServerPort = 0;
-	UPROPERTY(BlueprintReadWrite)
-		FString ModListPath;
-
-
-	// Volume Settings
-
-	UPROPERTY(BlueprintReadWrite)
-		float MasterVolume = 1.0f;
-	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "BGM Volume"))
-		float BGMVolume = 1.0f;
-	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "Ambience Volume"))
-		float AmbiVolume = 1.0f;
-	UPROPERTY(BlueprintReadWrite, meta = (DisplayName = "SFX Volume"))
-		float SFXVolume = 1.0f;
-
-
-	// General Settings
-
-	UPROPERTY(BlueprintReadWrite)
-		bool Autopause = false;
-	UPROPERTY(BlueprintReadWrite)
-		bool PasswordsVisible = false;
-	UPROPERTY(BlueprintReadWrite)
-		float ServerTimeout = 10.0f;
-	UPROPERTY(BlueprintReadWrite)
-		bool AdvancedNPCInteraction = false;
-
-
-	// Visual Settings
+		FString HostID;
 
 	/*
-		in XxY[f] format for use in r.SetRes
-		As a result covers both resolution and
-		fullscreen
+		Note: Only used when in dedicated server mode.
+
+		When the server is in listen mode, the host can simply
+		be determined as the first playercontroller present, but this
+		isn't the case for a dedicated server. Instead, the host must define
+		this password so that, when needed, they can request that the server
+		give them ownership at the cost of knowing this password.
+
+		Note for when actually doing this: I should probably encrypt this lmao
 	*/
 	UPROPERTY(BlueprintReadWrite)
-		FString Resolution;
+		FString HostPassword;
+
+
+	UPROPERTY(BlueprintReadWrite)
+		FString ServerPassword;
 
 
 	virtual void Init() override;
@@ -163,47 +143,56 @@ public:
 	UFUNCTION(BlueprintPure)
 		UWorldSaveBase* GetWorldSave() { return WorldSave; }
 
+	UFUNCTION(BlueprintPure)
+		UMPHorsoSettingsSave* GetSettingsSave();
+
+	UFUNCTION(BlueprintPure)
+		bool GetWorldAccessControlList(FAccessControlList& WorldACL);
+
+	UFUNCTION(BlueprintPure)
+		void GetUniversalAccessControlList(FAccessControlList& UniversalACL);
+
+	UFUNCTION(BlueprintCallable)
+		void SaveSettings();
+
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 		void ReadyForPlay();
 	void ReadyForPlay_Implementation() {}
 
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void KickIP(const FString& IP);
-	void KickIP_Implementation(const FString& IP) {}
-	
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void BanIP(const FString& IP);
-	void BanIP_Implementation(const FString& IP) {}
+	UFUNCTION(BlueprintPure)
+		bool GetPlayerIP(APlayerController* Player, FString& OutIP);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void UnbanIP(const FString& IP);
-	void UnbanIP_Implementation(const FString& IP) {}
+	UFUNCTION(BlueprintPure)
+		bool UserIsHost(const FString& ID) { return ID == HostID; }
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void OpIP(const FString& IP);
-	void OpIP_Implementation(const FString& IP) {}
+	UFUNCTION(BlueprintCallable)
+		bool Kick(const FString& InvokerIP, const FString& TargetID, float DurationSeconds, bool Universal, FString& ErrorString);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void UnopIP(const FString& IP);
-	void UnopIP_Implementation(const FString& IP) {}
+	UFUNCTION(BlueprintCallable)
+		bool Unkick(const FString& InvokerIP, const FString& TargetID, bool Universal, FString& ErrorString);
 
+	UFUNCTION(BlueprintCallable)
+		bool Ban(const FString& InvokerIP, const FString& TargetID, bool Universal, FString& ErrorString);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void KickPlayer(APlayerController* Player);
-	void KickPlayer_Implementation(APlayerController* Player) {}
+	UFUNCTION(BlueprintCallable)
+		bool Unban(const FString& InvokerIP, const FString& TargetID, bool Universal, FString& ErrorString);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void BanPlayer(APlayerController* Player);
-	void BanPlayer_Implementation(APlayerController* Player) {}
+	UFUNCTION(BlueprintCallable)
+		bool Promote(const FString& InvokerIP, const FString& TargetID, const FString& ModTier, bool Universal, FString& ErrorString);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void OpPlayer(APlayerController* Player);
-	void OpPlayer_Implementation(APlayerController* Player) {}
+	UFUNCTION(BlueprintCallable)
+		bool Demote(const FString& InvokerIP, const FString& TargetID, const FString& ModTier, bool Universal, FString& ErrorString);
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-		void UnopPlayer(APlayerController* Player);
-	void UnopPlayer_Implementation(APlayerController* Player) {}
+	UFUNCTION(BlueprintCallable)
+		bool MakeModTier(const FString& InvokerIP, const FString& TierName, const TArray<FString>& ModPerms, int InsertIndex, bool Universal, FString& ErrorString);
+
+	UFUNCTION(BlueprintCallable)
+		bool RemoveModTier(const FString& InvokerIP, const FString& TierName, const FString& MoveTierName, bool Universal, FString& ErrorString);
+
+	UFUNCTION(BlueprintCallable)
+		bool ChangeListMode(const FString& InvokerIP, bool Whitelist, bool Universal, FString& ErrorString);
+
 
 	UFUNCTION()
 		UNPCRuleBlock* GetNPCRuleBlock(TSubclassOf<UNPCRuleBlock> RuleBlockClass);

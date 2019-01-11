@@ -353,7 +353,7 @@ APlayerController* UMPHorsoNetLibrary::GetPlayerByIP(UObject* WorldContext, FStr
 		{
 			currCasted = Cast<APlayerController>(curr);
 
-			if (currCasted->GetNetConnection()->RemoteAddressToString() == IP)
+			if (currCasted->GetNetConnection()->LowLevelGetRemoteAddress() == IP)
 				return currCasted;
 		}
 	}
@@ -366,7 +366,7 @@ APlayerController* UMPHorsoNetLibrary::GetPlayerByIP(UObject* WorldContext, FStr
 FString UMPHorsoNetLibrary::GetPlayerIP(class APlayerController* Player)
 {
 	if(nullptr != Player && nullptr != Player->GetNetConnection())
-		return Player->GetNetConnection()->RemoteAddressToString();
+		return Player->GetNetConnection()->LowLevelGetRemoteAddress();
 
 	return "";
 }

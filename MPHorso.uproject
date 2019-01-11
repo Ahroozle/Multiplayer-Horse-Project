@@ -12,7 +12,8 @@
 				"Engine",
 				"Paper2D",
 				"CoreUObject",
-				"UMG"
+				"UMG",
+				"OnlineSubsystemUtils"
 			]
 		}
 	],
